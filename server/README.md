@@ -1,125 +1,124 @@
 # TripoSR API Server
 
-FastAPI server for 3D mesh generation from single images using TripoSR.
+Lightweight FastAPI server that proxies 3D mesh generation requests to Modal's GPU-powered TripoSR service.
 
-## About TripoSR
+## Architecture
 
-TripoSR is a fast image-to-3D model that generates high-quality 3D meshes in ~0.5 seconds on GPU. It works well for:
-- Single objects (furniture, products, toys, vehicles)
-- Architecture (best with isolated buildings, clean backgrounds)
-- Characters and organic shapes
+```
+User → Next.js Frontend → FastAPI Server (this) → Modal TripoSR Service (GPU) → Returns .obj file
+```
 
-## Requirements
-
-- **Python 3.10 or 3.11** (3.14+ not supported due to package compatibility)
-- **Conda** (recommended) or venv with Python 3.10
-- 6GB+ GPU VRAM (recommended) or CPU fallback
+This server:
+- Receives image uploads from frontend
+- Forwards to Modal API for GPU processing
+- Returns downloadable 3D mesh files
+- **No local GPU or heavy ML dependencies needed!**
 
 ## Setup
 
-### 1. Install Miniconda
-
-If you don't have conda installed:
-```bash
-# Download and install Miniconda
-curl -O https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-arm64.sh
-bash Miniconda3-latest-MacOSX-arm64.sh
-
-# Restart terminal after installation
-```
-
-### 2. Create Environment
+### 1. Install Dependencies
 
 ```bash
 cd server
 
-# Create conda environment with Python 3.10
-conda create -n triposr python=3.10 -y
-conda activate triposr
+# Create virtual environment
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
 
-# Install PyTorch
-conda install pytorch torchvision -c pytorch -y
-
-# Install other dependencies
+# Install dependencies (lightweight!)
 pip install -r requirements.txt
-pip install git+https://github.com/tatsy/torchmcubes.git
-pip install onnxruntime
-
-# Clone TripoSR repository
-git clone https://github.com/VAST-AI-Research/TripoSR.git triposr_repo
 ```
 
-### 3. Run Server
+### 2. Deploy Modal Service
+
+First, set up the Modal backend (see `../modal/TRIPOSR_README.md`):
 
 ```bash
-conda activate triposr
+# Install Modal
+pip install modal
+
+# Authenticate
+modal token new
+
+# Deploy the GPU service
+cd ../modal
+modal serve triposr_service.py
+```
+
+Copy the Modal endpoint URL you receive.
+
+### 3. Configure Endpoint
+
+Set the Modal endpoint URL as an environment variable:
+
+```bash
+export MODAL_ENDPOINT="https://yourname--triposr-service-triposrservice-generate-mesh.modal.run"
+```
+
+Or edit `server.py` directly and update the `MODAL_ENDPOINT` variable.
+
+### 4. Run Server
+
+```bash
 python server.py
 ```
 
-Server will start at `http://localhost:8000`
+Server runs at `http://localhost:8000`
 
 ## API Endpoints
 
 - `GET /` - Server info and health status
 - `GET /health` - Health check
 - `POST /upload` - Upload image file
-- `POST /generate-mesh` - Generate 3D mesh from image (returns .obj file)
+- `POST /generate-mesh` - Generate 3D mesh from image (calls Modal)
 - `GET /download/{filename}` - Download generated mesh file
 - `DELETE /cleanup` - Clean up uploaded/generated files
 
 ### Interactive Docs
 
-Visit `http://localhost:8000/docs` for Swagger UI with interactive API testing.
+Visit `http://localhost:8000/docs` for Swagger UI
 
 ## Usage
-
-### Test with curl:
 
 ```bash
 # Generate mesh from image
 curl -X POST "http://localhost:8000/generate-mesh" \
-  -H "accept: application/json" \
   -H "Content-Type: multipart/form-data" \
-  -F "file=@/path/to/your/image.jpg"
+  -F "file=@/path/to/image.jpg"
 
-# Download generated mesh
+# Response includes download URL
+# Download the mesh
 curl -O "http://localhost:8000/download/yourimage.obj"
 ```
 
-### DALL-E → TripoSR Pipeline:
+## Requirements
 
-1. Generate image with DALL-E (e.g., "modern building in Paris 1998 style")
-2. Upload image to `/generate-mesh` endpoint
-3. Download the 3D .obj file from the response URL
-4. Import into Blender/Unity/etc.
+- Python 3.10+ (tested on 3.14.2)
+- No GPU needed (Modal handles GPU compute)
+- Minimal dependencies (FastAPI + requests)
 
-## Deployment
+## Modal Backend
 
-This server is designed for Modal deployment. See `modal_deploy.py` (if exists) for deployment configuration.
+The actual 3D generation happens on Modal's infrastructure:
+- **GPU**: A10G (configurable)
+- **Auto-scaling**: Scales to 0 when idle
+- **Pay-per-use**: Only pay for compute time
+- **Fast**: 5-10 seconds per mesh on GPU
 
-For Modal:
-- Python version is specified in Modal config
-- Team members don't need matching Python versions locally
-- Just deploy and use the API URL
+See `../modal/TRIPOSR_README.md` for Modal setup details.
 
-## Notes
+## Cost
 
-- First mesh generation downloads model weights (~1.5GB)
-- Model runs on CUDA if available, otherwise CPU
-- Background removal is automatic using rembg
-- Best results with clean, well-lit images of isolated objects
+Local server: **Free** (no GPU needed)
+Modal backend: **~$0.001-0.003 per mesh generation**
 
 ## Troubleshooting
 
+**Connection errors to Modal:**
+- Verify Modal service is running: `modal app list`
+- Check `MODAL_ENDPOINT` is set correctly
+- Check Modal logs: `modal app logs triposr-service`
+
 **Server won't start:**
-- Make sure conda environment is activated: `conda activate triposr`
-- Check all dependencies installed: `pip list`
-
-**Low quality meshes:**
-- Try images with better lighting
-- Ensure object is isolated (clean background)
-- Avoid complex scenes with multiple objects
-
-**Out of memory:**
-- Model requires ~6GB GPU VRAM
-- Falls back to CPU if no GPU (slower but works)
+- Activate virtual environment: `source venv/bin/activate`
+- Install dependencies: `pip install -r requirements.txt`

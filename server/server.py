@@ -3,23 +3,18 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 import uvicorn
 import os
-import sys
 from pathlib import Path
-import PIL.Image
-import torch
-
-# Suppress OpenMP warning
-os.environ['OMP_NUM_THREADS'] = '1'
-
-# Add TripoSR to path
-sys.path.insert(0, str(Path(__file__).parent / "triposr_repo"))
-from tsr.system import TSR
+import base64
+import requests
 
 app = FastAPI(title="TripoSR Server")
 
-# Initialize TripoSR model
-device = "cuda" if torch.cuda.is_available() else "cpu"
-model = None  # Lazy load on first request
+# Modal endpoint URL - Update this after deploying to Modal
+# Get this URL by running: modal serve modal/triposr_service.py
+MODAL_ENDPOINT = os.getenv(
+    "MODAL_ENDPOINT",
+    "http://localhost:8001"  # Fallback for local testing
+)
 
 # CORS middleware to allow requests from Next.js frontend
 app.add_middleware(
@@ -37,28 +32,13 @@ UPLOAD_DIR.mkdir(exist_ok=True)
 OUTPUT_DIR.mkdir(exist_ok=True)
 
 
-def load_model():
-    """Load TripoSR model (lazy loading)"""
-    global model
-    if model is None:
-        print("Loading TripoSR model...")
-        model = TSR.from_pretrained(
-            "stabilityai/TripoSR",
-            config_name="config.yaml",
-            weight_name="model.ckpt",
-        )
-        model.to(device)
-        print(f"Model loaded on {device}")
-    return model
-
-
 @app.get("/")
 async def root():
     return {
-        "message": "TripoSR API Server",
+        "message": "TripoSR API Server (Modal-powered)",
         "status": "running",
-        "version": "1.0.0",
-        "device": device
+        "version": "2.0.0",
+        "modal_endpoint": MODAL_ENDPOINT
     }
 
 
@@ -97,54 +77,52 @@ async def upload_file(file: UploadFile = File(...)):
 @app.post("/generate-mesh")
 async def generate_mesh(file: UploadFile = File(...)):
     """
-    Generate 3D mesh from uploaded image using TripoSR
+    Generate 3D mesh from uploaded image using TripoSR via Modal
     """
     try:
         # Validate file type
         if not file.content_type.startswith('image/'):
             raise HTTPException(status_code=400, detail="File must be an image")
 
-        # Save uploaded file
-        file_path = UPLOAD_DIR / file.filename
-        with open(file_path, "wb") as buffer:
-            content = await file.read()
-            buffer.write(content)
+        # Read file content
+        content = await file.read()
 
-        # Load model (lazy loading)
-        tsr_model = load_model()
+        # Encode image as base64
+        image_base64 = base64.b64encode(content).decode('utf-8')
 
-        # Load and process image
-        image = PIL.Image.open(file_path)
-
-        # Remove background if image doesn't have alpha channel
-        if image.mode != "RGBA":
-            from rembg import remove
-            image = remove(image)
-
-        # Convert RGBA to RGB (TripoSR expects RGB)
-        # Composite onto white background to preserve transparency
-        if image.mode == "RGBA":
-            # Create white background
-            background = PIL.Image.new("RGB", image.size, (255, 255, 255))
-            # Paste image with alpha as mask
-            background.paste(image, mask=image.split()[3])
-            image = background
-        elif image.mode != "RGB":
-            image = image.convert("RGB")
-
-        # Generate 3D mesh
         print(f"Processing image: {file.filename}")
-        with torch.no_grad():
-            scene_codes = tsr_model([image], device=device)
+        print(f"Calling Modal endpoint: {MODAL_ENDPOINT}")
 
-        # Extract mesh
-        meshes = tsr_model.extract_mesh(scene_codes, has_vertex_color=False)
-        mesh = meshes[0]
+        # Call Modal endpoint
+        response = requests.post(
+            f"{MODAL_ENDPOINT}/generate_mesh",
+            json={
+                "image_base64": image_base64,
+                "remove_background": True,
+                "foreground_ratio": 0.85
+            },
+            timeout=300  # 5 minute timeout
+        )
 
-        # Save mesh as .obj file
+        if response.status_code != 200:
+            raise HTTPException(
+                status_code=response.status_code,
+                detail=f"Modal API error: {response.text}"
+            )
+
+        result = response.json()
+
+        if not result.get("success"):
+            raise HTTPException(
+                status_code=500,
+                detail=f"Mesh generation failed: {result.get('message', 'Unknown error')}"
+            )
+
+        # Decode and save the OBJ file
+        obj_bytes = base64.b64decode(result["obj_base64"])
         output_filename = f"{Path(file.filename).stem}.obj"
         output_path = OUTPUT_DIR / output_filename
-        mesh.export(str(output_path))
+        output_path.write_bytes(obj_bytes)
 
         print(f"Mesh saved to: {output_path}")
 
@@ -157,6 +135,9 @@ async def generate_mesh(file: UploadFile = File(...)):
             "download_url": f"/download/{output_filename}"
         }
 
+    except requests.exceptions.RequestException as e:
+        print(f"Error calling Modal API: {str(e)}")
+        raise HTTPException(status_code=503, detail=f"Modal API unavailable: {str(e)}")
     except Exception as e:
         print(f"Error generating mesh: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
