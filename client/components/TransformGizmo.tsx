@@ -44,9 +44,8 @@ export function TransformGizmo({
       else if (axis === "rotateY") rotationStartRef.current = currentRotation.y;
       else if (axis === "rotateZ") rotationStartRef.current = currentRotation.z;
 
-      if (axis === "x" || axis === "y" || axis === "z" || axis === "free") {
-        onMoveStart();
-      }
+      // Save state for undo on any transform (move or rotate)
+      onMoveStart();
     },
     [currentRotation, onMoveStart]
   );
@@ -87,9 +86,7 @@ export function TransformGizmo({
 
     const handleMouseUp = () => {
       setIsDragging(false);
-      if (dragAxis === "x" || dragAxis === "y" || dragAxis === "z" || dragAxis === "free") {
-        onMoveEnd();
-      }
+      onMoveEnd();
       setDragAxis(null);
       dragStartRef.current = null;
     };

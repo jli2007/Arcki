@@ -20,7 +20,7 @@ interface InsertModelModalProps {
 export function InsertModelModal({ onClose, onPlaceModel }: InsertModelModalProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fileUrl, setFileUrl] = useState<string | null>(null);
-  const [scale, setScale] = useState(0.01);
+  const [scale, setScale] = useState(1);
   const [rotationX, setRotationX] = useState(0);
   const [rotationY, setRotationY] = useState(0);
   const [rotationZ, setRotationZ] = useState(0);
@@ -134,9 +134,9 @@ export function InsertModelModal({ onClose, onPlaceModel }: InsertModelModalProp
           </div>
           <input
             type="range"
-            min="0.001"
-            max="0.5"
-            step="0.001"
+            min="0.01"
+            max="10"
+            step="0.01"
             value={scale}
             onChange={(e) => setScale(parseFloat(e.target.value))}
             className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer accent-cyan-500"

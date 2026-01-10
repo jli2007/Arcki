@@ -106,6 +106,12 @@ export default function MapPage() {
   const [gizmoMode, setGizmoMode] = useState<"move" | "rotate">("move");
   const [gizmoScreenPos, setGizmoScreenPos] = useState<{ x: number; y: number } | null>(null);
 
+  // Model transform history for undo/redo
+  const [modelHistory, setModelHistory] = useState<InsertedModel[]>([]);
+  const [modelRedoStack, setModelRedoStack] = useState<InsertedModel[]>([]);
+  const modelHistoryRef = useRef(modelHistory);
+  const modelRedoStackRef = useRef(modelRedoStack);
+
   const activeToolRef = useRef(activeTool);
   const deletedFeaturesRef = useRef(deletedFeatures);
   const redoStackRef = useRef(redoStack);
@@ -141,6 +147,14 @@ export default function MapPage() {
     selectedModelIdRef.current = selectedModelId;
   }, [selectedModelId]);
 
+  useEffect(() => {
+    modelHistoryRef.current = modelHistory;
+  }, [modelHistory]);
+
+  useEffect(() => {
+    modelRedoStackRef.current = modelRedoStack;
+  }, [modelRedoStack]);
+
   // Helper to update the deleted areas on the map
   const updateDeletedAreasSource = useCallback((features: GeoJSON.Feature[]) => {
     if (map.current) {
@@ -154,8 +168,47 @@ export default function MapPage() {
     }
   }, []);
 
-  // Undo last deletion
+  // Save model state before transform for undo
+  const saveModelStateForUndo = useCallback(() => {
+    if (!selectedModelIdRef.current) return;
+    const model = insertedModelsRef.current.find(m => m.id === selectedModelIdRef.current);
+    if (model) {
+      setModelHistory(prev => [...prev, { ...model }]);
+      setModelRedoStack([]); // Clear redo stack on new action
+    }
+  }, []);
+
+  // Undo - handles both building deletions and model transforms
   const handleUndo = useCallback(() => {
+    // First try model transform undo
+    const currentModelHistory = modelHistoryRef.current;
+    if (currentModelHistory.length > 0) {
+      const previousState = currentModelHistory[currentModelHistory.length - 1];
+      const currentModel = insertedModelsRef.current.find(m => m.id === previousState.id);
+
+      if (currentModel) {
+        // Save current state to redo stack
+        setModelRedoStack(prev => [...prev, { ...currentModel }]);
+
+        // Restore previous state
+        setInsertedModels(prev => {
+          const updated = prev.map(m => m.id === previousState.id ? previousState : m);
+          updateModelsSource(updated);
+          return updated;
+        });
+
+        // Update gizmo position if this model is selected
+        if (selectedModelIdRef.current === previousState.id && map.current) {
+          const screenPos = map.current.project(previousState.position);
+          setGizmoScreenPos({ x: screenPos.x, y: screenPos.y });
+        }
+      }
+
+      setModelHistory(prev => prev.slice(0, -1));
+      return;
+    }
+
+    // Fall back to building deletion undo
     const currentDeleted = deletedFeaturesRef.current;
     if (currentDeleted.length === 0) return;
 
@@ -167,8 +220,37 @@ export default function MapPage() {
     updateDeletedAreasSource(newDeleted);
   }, [updateDeletedAreasSource]);
 
-  // Redo last undone deletion
+  // Redo - handles both building deletions and model transforms
   const handleRedo = useCallback(() => {
+    // First try model transform redo
+    const currentModelRedo = modelRedoStackRef.current;
+    if (currentModelRedo.length > 0) {
+      const nextState = currentModelRedo[currentModelRedo.length - 1];
+      const currentModel = insertedModelsRef.current.find(m => m.id === nextState.id);
+
+      if (currentModel) {
+        // Save current state to history
+        setModelHistory(prev => [...prev, { ...currentModel }]);
+
+        // Apply redo state
+        setInsertedModels(prev => {
+          const updated = prev.map(m => m.id === nextState.id ? nextState : m);
+          updateModelsSource(updated);
+          return updated;
+        });
+
+        // Update gizmo position if this model is selected
+        if (selectedModelIdRef.current === nextState.id && map.current) {
+          const screenPos = map.current.project(nextState.position);
+          setGizmoScreenPos({ x: screenPos.x, y: screenPos.y });
+        }
+      }
+
+      setModelRedoStack(prev => prev.slice(0, -1));
+      return;
+    }
+
+    // Fall back to building deletion redo
     const currentRedo = redoStackRef.current;
     if (currentRedo.length === 0) return;
 
@@ -377,11 +459,36 @@ export default function MapPage() {
   }, [updateModelsSource]);
 
   // Update a model's scale or rotation
-  const handleUpdateModel = useCallback((modelId: string, updates: { scale?: number; rotationX?: number; rotationY?: number; rotationZ?: number }) => {
+  const handleUpdateModel = useCallback((modelId: string, updates: { scale?: number; positionX?: number; positionY?: number; height?: number; rotationX?: number; rotationY?: number; rotationZ?: number }) => {
     setInsertedModels(prev => {
-      const updated = prev.map(m =>
-        m.id === modelId ? { ...m, ...updates } : m
-      );
+      const updated = prev.map(m => {
+        if (m.id !== modelId) return m;
+
+        // Handle position updates separately since position is [lng, lat] tuple
+        let newModel = { ...m };
+        if (updates.positionX !== undefined) {
+          newModel.position = [updates.positionX, newModel.position[1]];
+        }
+        if (updates.positionY !== undefined) {
+          newModel.position = [newModel.position[0], updates.positionY];
+        }
+        if (updates.height !== undefined) {
+          newModel.height = updates.height;
+        }
+        if (updates.scale !== undefined) {
+          newModel.scale = updates.scale;
+        }
+        if (updates.rotationX !== undefined) {
+          newModel.rotationX = updates.rotationX;
+        }
+        if (updates.rotationY !== undefined) {
+          newModel.rotationY = updates.rotationY;
+        }
+        if (updates.rotationZ !== undefined) {
+          newModel.rotationZ = updates.rotationZ;
+        }
+        return newModel;
+      });
       updateModelsSource(updated);
       return updated;
     });
@@ -854,6 +961,7 @@ export default function MapPage() {
             z: insertedModels.find(m => m.id === selectedModelId)?.rotationZ ?? 0,
           }}
           onMoveStart={() => {
+            saveModelStateForUndo();
             map.current?.dragPan.disable();
           }}
           onMove={handleGizmoMove}
