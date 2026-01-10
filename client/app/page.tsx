@@ -14,6 +14,8 @@ export default function Home() {
   const heroSectionRef = useRef<HTMLElement>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
+  const popupRef = useRef<mapboxgl.Popup | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
 
   const handleIntersection = (entries: IntersectionObserverEntry[]) => {
     entries.forEach((entry) => {
@@ -55,7 +57,7 @@ export default function Home() {
   }, []); // Only run on mount
 
   const animateCount = () => {
-    const targetNumber = 47000; // Approximate number of buildings in San Francisco
+    const targetNumber = 100000; // Number of editable buildings across all cities
     const duration = 2000; // 2 seconds
     const steps = 60;
     const increment = targetNumber / steps;
@@ -103,27 +105,348 @@ export default function Home() {
       return;
     }
 
+    // Define base camera settings - centered in middle of SF
+    // More central SF coordinates - around Market Street / Financial District area
+    const baseCenter: [number, number] = [-122.4050, 37.7840];
+    const baseZoom = 13;
+    const basePitch = 50;
+    let baseBearing = -20; // Starting bearing, will vary
+
+    // SF Attractions interface and array
+    interface Attraction {
+      name: string;
+      coordinates: [number, number];
+      icon: string;
+      zoom: number;
+      pitch: number;
+      bearing: number; // Approach angle/bearing for unique rotation
+      returnBearing?: number; // Optional return bearing variation
+    }
+
+    const attractions: Attraction[] = [
+      {
+        name: "Chase Center",
+        coordinates: [-122.3879, 37.7680],
+        icon: "🏀",
+        zoom: 16.5,
+        pitch: 58,
+        bearing: 45, // Approach from southeast
+        returnBearing: 225,
+      },
+      {
+        name: "Golden Gate Bridge",
+        coordinates: [-122.4783, 37.8199],
+        icon: "🌉",
+        zoom: 15.5,
+        pitch: 52,
+        bearing: 315, // Approach from northwest
+        returnBearing: 135,
+      },
+      {
+        name: "Transamerica Pyramid",
+        coordinates: [-122.4019, 37.7951],
+        icon: "🏢",
+        zoom: 17,
+        pitch: 62,
+        bearing: 180, // Approach from south
+        returnBearing: 0,
+      },
+      {
+        name: "Alcatraz Island",
+        coordinates: [-122.4230, 37.8267],
+        icon: "🏝️",
+        zoom: 15,
+        pitch: 48,
+        bearing: 270, // Approach from west
+        returnBearing: 90,
+      },
+      {
+        name: "Fisherman's Wharf",
+        coordinates: [-122.4168, 37.8080],
+        icon: "🐟",
+        zoom: 16,
+        pitch: 56,
+        bearing: 135, // Approach from northeast
+        returnBearing: 315,
+      },
+    ];
+
+    let currentAttractionIndex = 0;
+
+    // Start with lower zoom to hide buildings, then animate in
+    // Centered in middle of SF (Market Street / Financial District area)
     mapRef.current = new mapboxgl.Map({
       container: mapContainerRef.current,
       style: "mapbox://styles/mapbox/standard", // Standard style with 3D buildings
-      center: [-122.4194, 37.7749], // San Francisco
-      zoom: 13,
-      pitch: 50,
-      bearing: -17.6,
+      center: baseCenter, // Centered in middle of SF
+      zoom: 11, // Start zoomed out (buildings less visible)
+      pitch: 35, // Lower pitch initially
+      bearing: baseBearing, // Starting bearing
       interactive: false, // Non-interactive background
       attributionControl: false,
     });
 
-    // Wait for map to load before applying styles
-    mapRef.current.on("style.load", () => {
+    // Animate buildings popping up in 3D
+    const animateBuildings = () => {
+      if (!mapRef.current) return;
+
+      // Wait a moment for map to stabilize, then animate
+      setTimeout(() => {
+        if (!mapRef.current) return;
+
+        // Animate zoom and pitch to reveal 3D buildings with smooth ease-out
+        // Also rotate to base bearing for variety
+        mapRef.current.easeTo({
+          center: baseCenter,
+          zoom: baseZoom,
+          pitch: basePitch,
+          bearing: baseBearing,
+          duration: 2000,
+        });
+
+        // Start attraction sequence after initial building animation completes
+        setTimeout(() => {
+          startAttractionSequence();
+        }, 2000);
+      }, 300);
+    };
+
+    // Show popup and visit attractions sequentially
+    const visitAttraction = (attraction: Attraction, index: number) => {
+      if (!mapRef.current) return;
+
+      // Remove previous popup
+      if (popupRef.current) {
+        popupRef.current.remove();
+        popupRef.current = null;
+      }
+
+      // Pause continuous movement during animation
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
+
+      // Create popup for this attraction
+      popupRef.current = new mapboxgl.Popup({
+        closeButton: false,
+        closeOnClick: false,
+        anchor: 'bottom',
+        offset: [0, -15],
+        className: 'building-popup',
+        maxWidth: 'none',
+      })
+        .setLngLat(attraction.coordinates)
+        .setHTML(`
+          <div class="building-popup-content" style="
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: white;
+          ">
+            <div style="font-size: 20px;">${attraction.icon}</div>
+            <div style="
+              font-size: 14px;
+              font-weight: 600;
+              color: #00ffff;
+              text-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+            ">${attraction.name}</div>
+          </div>
+        `)
+        .addTo(mapRef.current);
+
+      // Fade in popup
+      const popupElement = document.querySelector('.building-popup') as HTMLElement;
+      if (popupElement) {
+        popupElement.style.opacity = '0';
+        popupElement.style.transition = 'opacity 1s ease-in-out';
+        setTimeout(() => {
+          popupElement.style.opacity = '1';
+        }, 100);
+      }
+
+      // Step 1: Fly to attraction with unique bearing/rotation for varied approach (per Mapbox docs)
+      // Each attraction approached from different direction for uniqueness
+      mapRef.current.flyTo({
+        center: attraction.coordinates,
+        zoom: attraction.zoom,
+        pitch: attraction.pitch,
+        bearing: attraction.bearing, // Unique rotation angle for each attraction
+        duration: 2000, // 2 seconds to fly in
+        // flyTo creates smooth arc path automatically
+      });
+
+      // Step 2: Rotate 360 degrees around the building
+      setTimeout(() => {
+        if (!mapRef.current) return;
+
+        // Get current bearing and rotate 360 degrees around the building
+        const currentBearing = mapRef.current.getBearing();
+        const targetBearing = (currentBearing + 360) % 360;
+
+        // Rotate 360 degrees while keeping center on building
+        mapRef.current.easeTo({
+          center: attraction.coordinates, // Keep center on building
+          zoom: attraction.zoom, // Keep zoom level
+          pitch: attraction.pitch, // Keep pitch
+          bearing: targetBearing, // Rotate 360 degrees
+          duration: 4000, // 4 seconds for smooth 360 rotation
+        });
+
+        // Step 3: After 360 rotation completes, hold briefly then zoom out
+        setTimeout(() => {
+          if (!mapRef.current) return;
+
+          // Step 4: Zoom back out with VARIED center position and rotation for uniqueness
+          // Each zoom-out goes to a slightly different center point to avoid repetition
+          const nextIndex = (currentAttractionIndex + 1) % attractions.length;
+          const nextAttraction = attractions[nextIndex];
+          
+          // Calculate dynamic return bearing with variation
+          const baseReturnBearing = attraction.returnBearing ?? 
+            ((nextAttraction.bearing + 180) % 360);
+          const variation = (index * 30) % 60 - 30; // Rotates through -30 to +30
+          const returnBearing = (baseReturnBearing + variation + 360) % 360;
+          
+          // Vary the return center position - offset based on attraction and cycle
+          // This makes each zoom-out feel unique instead of always going to same center
+          const cycleOffset = Math.floor(currentAttractionIndex / attractions.length);
+          const angleOffset = (index * 72 + cycleOffset * 36) * (Math.PI / 180); // 72° per attraction, 36° per cycle
+          const distanceOffset = 0.008; // ~800m offset in degrees
+          const offsetLng = Math.cos(angleOffset) * distanceOffset;
+          const offsetLat = Math.sin(angleOffset) * distanceOffset;
+          const variedCenter: [number, number] = [
+            baseCenter[0] + offsetLng,
+            baseCenter[1] + offsetLat
+          ];
+          
+          // Also vary zoom and pitch slightly for more uniqueness
+          const zoomVariation = (index % 3) * 0.3 - 0.3; // -0.3, 0, +0.3
+          const pitchVariation = (index % 4) * 2 - 3; // -3, -1, +1, +3
+          const variedZoom = baseZoom + zoomVariation;
+          const variedPitch = Math.max(45, Math.min(55, basePitch + pitchVariation));
+          
+          // Use flyTo for more dramatic, varied return path
+          mapRef.current.flyTo({
+            center: variedCenter, // Different center each time!
+            zoom: variedZoom, // Slightly varied zoom
+            pitch: variedPitch, // Slightly varied pitch
+            bearing: returnBearing, // Varied return rotation
+            duration: 2000, // 2 seconds to return
+            // flyTo creates arc path for more interesting return journey
+          });
+
+          // Step 5: After returning, move to next attraction
+          setTimeout(() => {
+            if (!mapRef.current) return;
+
+            // Remove popup
+            if (popupRef.current) {
+              popupRef.current.remove();
+              popupRef.current = null;
+            }
+
+            // Move to next attraction
+            currentAttractionIndex = (currentAttractionIndex + 1) % attractions.length;
+            
+            // Update base bearing slightly each cycle for continuous variation
+            // This makes each complete cycle unique
+            if (currentAttractionIndex === 0) {
+              baseBearing = (baseBearing + 15) % 360; // Rotate 15 degrees each full cycle
+            }
+            
+            // Small delay before next attraction
+            setTimeout(() => {
+              if (mapRef.current) {
+                visitAttraction(attractions[currentAttractionIndex], currentAttractionIndex);
+              }
+            }, 1000);
+          }, 2000);
+        }, 1000); // Brief hold after 360 rotation (1 second)
+      }, 500); // Small delay after zoom in before starting rotation
+    };
+
+    // Start the attraction sequence
+    const startAttractionSequence = () => {
+      if (!mapRef.current || attractions.length === 0) return;
+      
+      // Wait a bit after initial building animation, then start sequence
+      setTimeout(() => {
+        visitAttraction(attractions[currentAttractionIndex], currentAttractionIndex);
+      }, 2000);
+    };
+
+    // Start continuous subtle camera movement with smooth transitions
+    const startContinuousMovement = () => {
+      if (!mapRef.current) return;
+
+      let baseBearing = mapRef.current.getBearing();
+      let basePitch = mapRef.current.getPitch();
+      let time = 0;
+      let lastUpdateTime = Date.now();
+      const updateInterval = 500; // Update every 500ms for smooth movement
+
+      const updateCamera = () => {
+        if (!mapRef.current) return;
+
+        const now = Date.now();
+        const deltaTime = now - lastUpdateTime;
+
+        // Only update every 500ms to allow smooth easing
+        if (deltaTime >= updateInterval) {
+          time += 0.02; // Slow animation speed
+          
+          // Calculate target positions using smooth sinusoidal functions
+          const rotation = Math.sin(time) * 15; // ±15 degrees rotation
+          const targetBearing = baseBearing + rotation;
+
+          const pitchVariation = Math.sin(time * 0.7) * 3; // ±3 degrees pitch
+          const targetPitch = Math.max(45, Math.min(55, basePitch + pitchVariation));
+
+          // Use easeTo for smooth transitions (3 second duration for continuous smooth movement)
+          mapRef.current.easeTo({
+            bearing: targetBearing,
+            pitch: targetPitch,
+            duration: 3000,
+          });
+
+          lastUpdateTime = now;
+        }
+
+        animationFrameRef.current = requestAnimationFrame(updateCamera);
+      };
+
+      // Start the animation loop
+      updateCamera();
+    };
+
+    // Wait for map to load before applying styles and animations
+    mapRef.current.once("style.load", () => {
       if (mapRef.current) {
         mapRef.current.setConfigProperty("basemap", "showPlaceLabels", true);
         mapRef.current.setConfigProperty("basemap", "showRoadLabels", true);
         mapRef.current.setConfigProperty("basemap", "lightPreset", "dusk");
+        
+        // Wait a bit for layers to fully load, then animate buildings
+        setTimeout(() => {
+          animateBuildings();
+        }, 500);
       }
     });
 
     return () => {
+      // Cleanup animation frame
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+      
+      // Remove popup
+      if (popupRef.current) {
+        popupRef.current.remove();
+        popupRef.current = null;
+      }
+      
+      // Remove map
       if (mapRef.current) {
         mapRef.current.remove();
         mapRef.current = null;
@@ -132,8 +455,15 @@ export default function Home() {
   }, []); // Only run once on mount
 
   // Adjust map based on current section for parallax effect
+  // Note: This will temporarily pause continuous movement during section changes
   useEffect(() => {
     if (!mapRef.current) return;
+
+    // Cancel continuous movement during section change
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
 
     const zoom = 13 + currentSection * 0.3;
     const pitch = 50 + currentSection * 3;
@@ -143,11 +473,54 @@ export default function Home() {
       pitch: Math.min(pitch, 65),
       duration: 1000,
     });
+
+    // Restart continuous movement after section transition with smooth easing
+    setTimeout(() => {
+      if (mapRef.current && !animationFrameRef.current) {
+        let baseBearing = mapRef.current.getBearing();
+        let basePitch = mapRef.current.getPitch();
+        let time = 0;
+        let lastUpdateTime = Date.now();
+        const updateInterval = 500; // Update every 500ms for smooth movement
+
+        const updateCamera = () => {
+          if (!mapRef.current) return;
+
+          const now = Date.now();
+          const deltaTime = now - lastUpdateTime;
+
+          // Only update every 500ms to allow smooth easing
+          if (deltaTime >= updateInterval) {
+            time += 0.02;
+            
+            const rotation = Math.sin(time) * 15;
+            const targetBearing = baseBearing + rotation;
+
+            const pitchVariation = Math.sin(time * 0.7) * 3;
+            const adjustedBasePitch = 50 + currentSection * 3;
+            const targetPitch = Math.max(45, Math.min(65, adjustedBasePitch + pitchVariation));
+
+            // Use easeTo for smooth transitions
+            mapRef.current.easeTo({
+              bearing: targetBearing,
+              pitch: targetPitch,
+              duration: 3000,
+            });
+
+            lastUpdateTime = now;
+          }
+
+          animationFrameRef.current = requestAnimationFrame(updateCamera);
+        };
+
+        updateCamera();
+      }
+    }, 1000);
   }, [currentSection]);
 
   return (
     <div className="relative h-screen overflow-y-auto snap-y snap-mandatory scroll-smooth">
-      {/* Background Map - San Francisco */}
+      {/* Background Map - City View */}
       <div className="fixed inset-0 z-0">
         <div ref={mapContainerRef} className="w-full h-full" />
         {/* Overlay gradient for better text readability */}
@@ -159,33 +532,33 @@ export default function Home() {
       {/* Navigation */}
       {/* <Navbar currentSection={currentSection} /> */}
 
-      {/* Hero Section with Earth */}
+      {/* Hero Section with Map */}
     <section ref={heroSectionRef} data-section-id="0" className="relative h-screen snap-start">
         <div className="absolute inset-0 pointer-events-none" />
         <div className="absolute inset-0 z-50 flex items-center">
           <div className="container mx-auto">
             <div className="max-w-4xl px-4">
               <div className="mb-8 inline-flex items-center gap-2 border-l border-cyan-500/30 pl-4">
-                <span className="text-sm font-medium uppercase tracking-widest text-zinc-400">San Francisco City Editor</span>
+                <span className="text-sm font-medium uppercase tracking-widest text-zinc-400">Real-time City Editor</span>
               </div>
               <h1 className="text-7xl font-bold mb-6 leading-tight text-left relative will-change-transform">
                 <span className="text-white font-sans [text-shadow:0_0_10px_#fff,0_0_20px_#00ffff] animate-[textGlow_3s_ease-in-out_infinite_alternate] will-change-transform">
-                  Reimagine San Francisco.
+                  Build Cities.
                 </span>
                 <br />
                 <span className="text-white/70 font-sans [text-shadow:0_0_10px_#fff,0_0_20px_#00ffff] animate-[textGlow_3s_ease-in-out_infinite_alternate] will-change-transform">
-                  One Building at a Time.
+                  Replace Buildings.
                 </span>
               </h1>
               <p className="text-[1.4rem] text-white/80 text-left max-w-2xl mb-2">
-                Redesign SF's skyline with AI-powered 3D models. Edit buildings in real-time, visualize changes, and explore new urban possibilities.
+                A professional urban planning platform for engineers and architects. Edit layouts, swap structures, and visualize changes in real-time across any city.
               </p>
               <p className="text-lg text-white/60 text-left max-w-xl mb-8">
-                Access to <span className="font-bold text-white">{formatNumber(photoCount)}</span>+ buildings across <span className="font-bold text-white">43</span> neighborhoods. Powered by AI and real-time rendering.
+                Access to <span className="font-bold text-white">{formatNumber(photoCount)}</span>+ editable buildings worldwide. Powered by AI and real-time rendering.
               </p>
               <div className="mt-8 flex gap-4">
                 <Button size="lg" className="bg-cyan-500 text-black hover:bg-cyan-400 font-semibold" asChild>
-                  <a href="/map">Explore San Francisco</a>
+                  <a href="/map">Start Building</a>
                 </Button>
               </div>
             </div>
@@ -193,158 +566,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Features Section */}
-      <section id="features" data-section-id="1" className="relative h-screen snap-start">
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="container mx-auto px-4">
-            <h2 className="text-4xl font-bold text-white mb-16 text-center [text-shadow:0_0_5px_rgba(255,255,255,0.3)]">
-              Features
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-7xl mx-auto">
-              {/* SF Neighborhoods */}
-              <div className="flex flex-col bg-white/5 rounded-lg backdrop-blur-sm border border-white/10 hover:border-white/20 transition-all p-8">
-                <h3 className="text-2xl font-bold mb-4 text-white text-center">43 Neighborhoods</h3>
-                <p className="text-base text-white/80 leading-relaxed text-center mb-6">
-                  Explore from the Mission to Chinatown, SoMa to Pacific Heights. Every iconic SF neighborhood is fully mapped and editable in stunning 3D detail.
-                </p>
-                <div className="w-full flex items-center justify-center mt-auto">
-                  <div className="w-full aspect-4/3 overflow-hidden rounded-lg bg-white/5 border border-white/10">
-                    <div className="w-full h-full flex items-center justify-center text-white/40 text-sm">Neighborhood Map</div>
-                  </div>
-                </div>
-              </div>
-
-              {/* AI-Powered 3D Generation */}
-              <div className="flex flex-col bg-white/5 rounded-lg backdrop-blur-sm border border-white/10 hover:border-white/20 transition-all p-8">
-                <h3 className="text-2xl font-bold mb-4 text-white text-center">AI Building Generator</h3>
-                <p className="text-base text-white/80 leading-relaxed text-center mb-6">
-                  Generate custom buildings from text prompts. Replace existing structures or add new ones anywhere in SF using GPU-accelerated TripoSR rendering.
-                </p>
-                <div className="w-full flex items-center justify-center mt-auto">
-                  <div className="w-full aspect-4/3 overflow-hidden rounded-lg bg-white/5 border border-white/10">
-                    <div className="w-full h-full flex items-center justify-center text-white/40 text-sm">AI Generation</div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Real-time Editing */}
-              <div className="flex flex-col bg-white/5 rounded-lg backdrop-blur-sm border border-white/10 hover:border-white/20 transition-all p-8">
-                <h3 className="text-2xl font-bold mb-4 text-white text-center">Instant Visualization</h3>
-                <p className="text-base text-white/80 leading-relaxed text-center mb-6">
-                  See your changes instantly. Draw areas to remove buildings, insert new models, and watch SF transform in real-time. Perfect for urban planners and architects.
-                </p>
-                <div className="w-full flex items-center justify-center mt-auto">
-                  <div className="w-full aspect-4/3 overflow-hidden rounded-lg bg-white/5 border border-white/10">
-                    <div className="w-full h-full flex items-center justify-center text-white/40 text-sm">Real-time Preview</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* About Section */}
-      <section id="about" data-section-id="2" className="relative h-screen snap-start">
-        <div className="absolute inset-0 flex items-center justify-end pr-12">
-          <div className="max-w-2xl bg-white/10 backdrop-blur-md rounded-lg p-8 border border-white/20 space-y-4 overflow-y-auto max-h-[80vh]">
-            <h2 className="text-2xl font-bold text-white mb-4">
-              About <span className="text-cyan-400 [text-shadow:0_0_10px_#00ffff]">San Francisco Delta</span>
-            </h2>
-
-            {/* Project Overview */}
-            <div>
-              <h3 className="text-lg font-bold text-white mb-2">
-                Redesigning SF
-              </h3>
-              <p className="text-sm text-white/80 leading-relaxed">
-                Built for DeltaHacks 12, this platform lets you reimagine San Francisco's skyline. Edit every building, test new urban designs, and visualize the future of the City by the Bay.
-              </p>
-            </div>
-
-            {/* SF Stats */}
-            <div>
-              <h3 className="text-lg font-bold text-white mb-2">
-                San Francisco by the Numbers
-              </h3>
-              <p className="text-sm text-white/80 leading-relaxed mb-3">
-                <span className="font-semibold text-white">47,000+</span> buildings | <span className="font-semibold text-white">43</span> neighborhoods | <span className="font-semibold text-white">49</span> sq miles
-              </p>
-              <p className="text-sm text-white/80 leading-relaxed">
-                Every structure from the Transamerica Pyramid to Victorian houses in the Haight is editable and ready for your redesign.
-              </p>
-            </div>
-
-            {/* Technology */}
-            <div>
-              <h3 className="text-lg font-bold text-white mb-2">
-                Powered by Modern Tech
-              </h3>
-              <p className="text-sm text-white/80 leading-relaxed">
-                Mapbox GL for precise SF mapping, TripoSR for AI building generation, Modal's GPU infrastructure for real-time rendering. Built with Next.js and Three.js.
-              </p>
-            </div>
-
-            <div className="flex gap-4 mt-8">
-              <div className="flex-1 bg-white/5 rounded-lg p-4 border border-white/10">
-                <div className="text-3xl font-bold text-cyan-400 mb-2">47K+</div>
-                <p className="text-white/60 text-sm">Buildings</p>
-              </div>
-              <div className="flex-1 bg-white/5 rounded-lg p-4 border border-white/10">
-                <div className="text-3xl font-bold text-cyan-400 mb-2">43</div>
-                <p className="text-white/60 text-sm">Neighborhoods</p>
-              </div>
-              <div className="flex-1 bg-white/5 rounded-lg p-4 border border-white/10">
-                <div className="text-3xl font-bold text-cyan-400 mb-2">100%</div>
-                <p className="text-white/60 text-sm">Editable</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Tech Stack Section */}
-      <section id="tech" data-section-id="3" className="relative h-screen snap-start">
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-6 z-10">
-          <h2 className="text-5xl font-bold text-white [text-shadow:0_0_5px_rgba(255,255,255,0.3)] mb-8">
-            Tech Stack
-          </h2>
-          <div className="max-w-5xl w-full px-4 grid grid-cols-2 md:grid-cols-4 gap-6">
-            <div className="bg-white/5 rounded-lg p-6 border border-white/10 text-center">
-              <div className="text-2xl font-bold text-white mb-2">Next.js</div>
-              <p className="text-white/60 text-sm">React Framework</p>
-            </div>
-            <div className="bg-white/5 rounded-lg p-6 border border-white/10 text-center">
-              <div className="text-2xl font-bold text-white mb-2">Mapbox</div>
-              <p className="text-white/60 text-sm">3D Mapping</p>
-            </div>
-            <div className="bg-white/5 rounded-lg p-6 border border-white/10 text-center">
-              <div className="text-2xl font-bold text-white mb-2">Three.js</div>
-              <p className="text-white/60 text-sm">3D Rendering</p>
-            </div>
-            <div className="bg-white/5 rounded-lg p-6 border border-white/10 text-center">
-              <div className="text-2xl font-bold text-white mb-2">Modal</div>
-              <p className="text-white/60 text-sm">GPU Infrastructure</p>
-            </div>
-            <div className="bg-white/5 rounded-lg p-6 border border-white/10 text-center">
-              <div className="text-2xl font-bold text-white mb-2">TripoSR</div>
-              <p className="text-white/60 text-sm">AI 3D Generation</p>
-            </div>
-            <div className="bg-white/5 rounded-lg p-6 border border-white/10 text-center">
-              <div className="text-2xl font-bold text-white mb-2">FastAPI</div>
-              <p className="text-white/60 text-sm">Backend API</p>
-            </div>
-            <div className="bg-white/5 rounded-lg p-6 border border-white/10 text-center">
-              <div className="text-2xl font-bold text-white mb-2">TypeScript</div>
-              <p className="text-white/60 text-sm">Type Safety</p>
-            </div>
-            <div className="bg-white/5 rounded-lg p-6 border border-white/10 text-center">
-              <div className="text-2xl font-bold text-white mb-2">Tailwind</div>
-              <p className="text-white/60 text-sm">Styling</p>
-            </div>
-          </div>
-        </div>
-      </section>
     </div>
   );
 }
