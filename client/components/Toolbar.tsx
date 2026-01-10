@@ -1,8 +1,8 @@
 "use client";
 
-import { CursorArrowIcon, GlobeIcon, InfoCircledIcon } from "@radix-ui/react-icons";
+import { CursorArrowIcon, GlobeIcon, InfoCircledIcon, Pencil2Icon } from "@radix-ui/react-icons";
 
-type ToolType = "select" | "teleport" | null;
+type ToolType = "select" | "teleport" | "draw" | null;
 
 interface ToolbarProps {
   activeTool: ToolType;
@@ -35,6 +35,18 @@ export function Toolbar({ activeTool, setActiveTool }: ToolbarProps) {
         >
           <GlobeIcon width={20} height={20} />
           <span className="text-[10px] font-medium">Teleport</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTool("draw")}
+          className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-all w-10 ${
+            activeTool === "draw"
+              ? "bg-white/20 text-white shadow-lg"
+              : "text-white/60 hover:text-white hover:bg-white/10"
+          }`}
+        >
+          <Pencil2Icon width={20} height={20} />
+          <span className="text-[10px] font-medium">Draw</span>
         </button>
       </div>
 

@@ -3,6 +3,10 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
+import MapboxDraw from "@mapbox/mapbox-gl-draw";
+import "@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css";
+import area from "@turf/area";
+import bbox from "@turf/bbox";
 import { Toolbar } from "@/components/Toolbar";
 import { BuildingDetailsPanel } from "@/components/BuildingDetailsPanel";
 
@@ -12,6 +16,12 @@ interface SelectedBuilding {
   address: string;
   coordinates: [number, number];
   polygon: GeoJSON.Polygon | null;
+}
+
+interface DrawnArea {
+  polygon: GeoJSON.Polygon;
+  areaM2: number;
+  dimensions: { width: number; depth: number };
 }
 
 async function reverseGeocode(
@@ -41,12 +51,26 @@ async function reverseGeocode(
   };
 }
 
+function calculateMetrics(polygon: GeoJSON.Polygon): { areaM2: number; dimensions: { width: number; depth: number } } {
+  const areaM2 = area({ type: "Feature", geometry: polygon, properties: {} });
+  const [minLng, minLat, maxLng, maxLat] = bbox({ type: "Feature", geometry: polygon, properties: {} });
+
+  const latMid = (minLat + maxLat) / 2;
+  const width = (maxLng - minLng) * 111320 * Math.cos(latMid * Math.PI / 180);
+  const depth = (maxLat - minLat) * 111320;
+
+  return { areaM2, dimensions: { width: Math.round(width), depth: Math.round(depth) } };
+}
+
 export default function MapPage() {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
-  const [activeTool, setActiveTool] = useState<"select" | "teleport" | null>(null);
+  const drawRef = useRef<MapboxDraw | null>(null);
+  const [activeTool, setActiveTool] = useState<"select" | "teleport" | "draw" | null>(null);
   const [selectedBuilding, setSelectedBuilding] = useState<SelectedBuilding | null>(null);
+  const [drawnArea, setDrawnArea] = useState<DrawnArea | null>(null);
   const [isLoadingAddress, setIsLoadingAddress] = useState(false);
+  const [deletedFeatures, setDeletedFeatures] = useState<GeoJSON.Feature[]>([]);
 
   const activeToolRef = useRef(activeTool);
   useEffect(() => {
@@ -55,16 +79,112 @@ export default function MapPage() {
 
   const clearSelection = useCallback(() => {
     setSelectedBuilding(null);
+    setDrawnArea(null);
+    if (map.current) {
+      const source = map.current.getSource("selected-building") as mapboxgl.GeoJSONSource;
+      if (source) {
+        source.setData({ type: "FeatureCollection", features: [] });
+      }
+    }
+    if (drawRef.current) {
+      drawRef.current.deleteAll();
+    }
+  }, []);
+
+  // Clear selection when tool changes
+  useEffect(() => {
+    if (activeTool !== "select" && selectedBuilding) {
+      setSelectedBuilding(null);
+    }
+    if (activeTool !== "draw" && drawnArea) {
+      setDrawnArea(null);
+      if (map.current) {
+        const source = map.current.getSource("selected-building") as mapboxgl.GeoJSONSource;
+        if (source) {
+          source.setData({ type: "FeatureCollection", features: [] });
+        }
+      }
+      if (drawRef.current) {
+        drawRef.current.deleteAll();
+      }
+    }
+  }, [activeTool, selectedBuilding, drawnArea]);
+
+  // Handle draw tool mode changes
+  useEffect(() => {
+    if (!drawRef.current || !map.current) return;
+
+    if (activeTool === "draw") {
+      drawRef.current.changeMode("draw_polygon");
+    } else {
+      drawRef.current.changeMode("simple_select");
+    }
+  }, [activeTool]);
+
+  // Handle draw create event
+  const handleDrawCreate = useCallback((e: { features: GeoJSON.Feature[] }) => {
+    const feature = e.features[0];
+    if (!feature || feature.geometry.type !== "Polygon") return;
+
+    const polygon = feature.geometry as GeoJSON.Polygon;
+    const metrics = calculateMetrics(polygon);
+
+    setDrawnArea({
+      polygon,
+      areaM2: metrics.areaM2,
+      dimensions: metrics.dimensions,
+    });
+
+    // Update highlight layer
     if (map.current) {
       const source = map.current.getSource("selected-building") as mapboxgl.GeoJSONSource;
       if (source) {
         source.setData({
           type: "FeatureCollection",
-          features: [],
+          features: [{ type: "Feature", geometry: polygon, properties: {} }],
         });
       }
     }
+
+    // Clear the drawn feature from MapboxDraw
+    setTimeout(() => {
+      if (drawRef.current && activeToolRef.current === "draw") {
+        drawRef.current.deleteAll();
+      }
+    }, 50);
   }, []);
+
+  // Handle delete area - add polygon to clip layer
+  const handleDeleteArea = useCallback((polygon: GeoJSON.Polygon) => {
+    const newFeature: GeoJSON.Feature = {
+      type: "Feature",
+      geometry: polygon,
+      properties: {},
+    };
+
+    setDeletedFeatures(prev => {
+      const updated = [...prev, newFeature];
+
+      if (map.current) {
+        const source = map.current.getSource("deleted-areas") as mapboxgl.GeoJSONSource;
+        if (source) {
+          source.setData({
+            type: "FeatureCollection",
+            features: updated,
+          });
+        }
+      }
+
+      return updated;
+    });
+
+    clearSelection();
+
+    // Restart draw mode if still in draw tool
+    if (activeToolRef.current === "draw" && drawRef.current) {
+      drawRef.current.changeMode("draw_polygon");
+    }
+  }, [clearSelection]);
 
   const handleBuildingClick = useCallback(
     async (e: mapboxgl.MapMouseEvent) => {
@@ -76,15 +196,7 @@ export default function MapPage() {
       // Query all features at click point
       const features = map.current.queryRenderedFeatures(e.point);
 
-      // Debug: log what features are found
-      console.log("Clicked features:", features.map(f => ({
-        layer: f.layer?.id,
-        sourceLayer: f.sourceLayer,
-        type: f.layer?.type,
-        geometry: f.geometry?.type
-      })));
-
-      // Find building features - try multiple detection methods
+      // Find building features
       const buildingFeature = features.find(
         (f) =>
           f.layer?.id?.includes("building") ||
@@ -113,32 +225,14 @@ export default function MapPage() {
       // Extract polygon from feature geometry if available
       let polygon: GeoJSON.Polygon | null = null;
       if (buildingFeature) {
-        if (
-          buildingFeature.geometry.type === "Polygon" ||
-          buildingFeature.geometry.type === "MultiPolygon"
-        ) {
-          if (buildingFeature.geometry.type === "Polygon") {
-            polygon = buildingFeature.geometry as GeoJSON.Polygon;
-          } else {
-            // For MultiPolygon, use the first polygon
-            const multiPoly = buildingFeature.geometry as GeoJSON.MultiPolygon;
-            polygon = {
-              type: "Polygon",
-              coordinates: multiPoly.coordinates[0],
-            };
-          }
-        }
-      }
-
-      // Update the highlight layer if we have a polygon
-      if (map.current && polygon) {
-        const source = map.current.getSource("selected-building") as mapboxgl.GeoJSONSource;
-        if (source) {
-          source.setData({
-            type: "Feature",
-            geometry: polygon,
-            properties: {},
-          });
+        if (buildingFeature.geometry.type === "Polygon") {
+          polygon = buildingFeature.geometry as GeoJSON.Polygon;
+        } else if (buildingFeature.geometry.type === "MultiPolygon") {
+          const multiPoly = buildingFeature.geometry as GeoJSON.MultiPolygon;
+          polygon = {
+            type: "Polygon",
+            coordinates: multiPoly.coordinates[0],
+          };
         }
       }
 
@@ -155,90 +249,146 @@ export default function MapPage() {
   );
 
   useEffect(() => {
-    if (map.current) return; // initialize map only once
+    if (map.current) return;
 
     mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 
     if (mapContainer.current) {
       map.current = new mapboxgl.Map({
         container: mapContainer.current,
-        // Use Mapbox Standard style for clip layer support
         style: "mapbox://styles/mapbox/standard",
         projection: { name: "globe" },
-        center: [-74.006, 40.7128], // New York City starting point
+        center: [-74.006, 40.7128],
         zoom: 15.5,
         pitch: 60,
-        bearing: -17.6, // Rotate the map
+        bearing: -17.6,
       });
 
-      // Add navigation controls
       map.current.addControl(new mapboxgl.NavigationControl(), "top-right");
 
-      // Configure 3D buildings when style loads
-      map.current.on("style.load", () => {
-        if (map.current) {
-          // Enable 3D buildings in the Standard style
-          map.current.setConfigProperty("basemap", "showPlaceLabels", true);
-          map.current.setConfigProperty("basemap", "showRoadLabels", true);
-          map.current.setConfigProperty("basemap", "showPointOfInterestLabels", true);
-          map.current.setConfigProperty("basemap", "lightPreset", "dusk");
-
-          // Add source for selected building highlight
-          map.current.addSource("selected-building", {
-            type: "geojson",
-            data: {
-              type: "FeatureCollection",
-              features: [],
-            },
-          });
-
-          // Add glow effect layer (wider, more transparent)
-          map.current.addLayer({
-            id: "building-outline-glow",
-            type: "line",
-            source: "selected-building",
-            paint: {
-              "line-color": "#00ffff",
-              "line-width": 8,
-              "line-opacity": 0.3,
-              "line-blur": 4,
-            },
-          });
-
-          // Add main outline layer
-          map.current.addLayer({
-            id: "building-outline",
-            type: "line",
-            source: "selected-building",
-            paint: {
-              "line-color": "#00ffff",
-              "line-width": 3,
-              "line-opacity": 0.9,
-            },
-          });
-
-          // Add fill layer with low opacity
-          map.current.addLayer({
-            id: "building-fill",
+      // Initialize MapboxDraw
+      drawRef.current = new MapboxDraw({
+        displayControlsDefault: false,
+        defaultMode: "simple_select",
+        styles: [
+          {
+            id: "gl-draw-polygon-fill",
             type: "fill",
-            source: "selected-building",
+            filter: ["all", ["==", "$type", "Polygon"]],
             paint: {
               "fill-color": "#00ffff",
-              "fill-opacity": 0.1,
+              "fill-opacity": 0.15,
             },
-          });
-        }
+          },
+          {
+            id: "gl-draw-polygon-stroke",
+            type: "line",
+            filter: ["all", ["==", "$type", "Polygon"]],
+            paint: {
+              "line-color": "#00ffff",
+              "line-width": 2,
+            },
+          },
+          {
+            id: "gl-draw-point",
+            type: "circle",
+            filter: ["all", ["==", "$type", "Point"]],
+            paint: {
+              "circle-radius": 5,
+              "circle-color": "#00ffff",
+            },
+          },
+          {
+            id: "gl-draw-line",
+            type: "line",
+            filter: ["all", ["==", "$type", "LineString"]],
+            paint: {
+              "line-color": "#00ffff",
+              "line-width": 2,
+              "line-dasharray": [2, 2],
+            },
+          },
+        ],
+      });
+      map.current.addControl(drawRef.current);
+
+      map.current.on("draw.create", handleDrawCreate);
+
+      map.current.on("style.load", () => {
+        if (!map.current) return;
+
+        map.current.setConfigProperty("basemap", "showPlaceLabels", true);
+        map.current.setConfigProperty("basemap", "showRoadLabels", true);
+        map.current.setConfigProperty("basemap", "showPointOfInterestLabels", true);
+        map.current.setConfigProperty("basemap", "lightPreset", "dusk");
+
+        // Add source for selected building highlight
+        map.current.addSource("selected-building", {
+          type: "geojson",
+          data: { type: "FeatureCollection", features: [] },
+        });
+
+        // Add source for deleted areas (clip layer)
+        map.current.addSource("deleted-areas", {
+          type: "geojson",
+          data: { type: "FeatureCollection", features: [] },
+        });
+
+        // Add clip layer to erase buildings
+        map.current.addLayer({
+          id: "building-eraser",
+          type: "clip",
+          source: "deleted-areas",
+          layout: {
+            "clip-layer-types": ["model"],
+            "clip-layer-scope": ["basemap"],
+          },
+        });
+
+        // Add highlight layers for draw mode
+        map.current.addLayer({
+          id: "selected-building-fill",
+          type: "fill",
+          source: "selected-building",
+          paint: {
+            "fill-color": "#00ffff",
+            "fill-opacity": 0.12,
+          },
+        });
+
+        map.current.addLayer({
+          id: "selected-building-glow",
+          type: "line",
+          source: "selected-building",
+          paint: {
+            "line-color": "#00ffff",
+            "line-width": 8,
+            "line-opacity": 0.4,
+            "line-blur": 3,
+          },
+        });
+
+        map.current.addLayer({
+          id: "selected-building-outline",
+          type: "line",
+          source: "selected-building",
+          paint: {
+            "line-color": "#7fffff",
+            "line-width": 2.5,
+            "line-opacity": 0.95,
+          },
+        });
       });
 
-      // Add click handler for building selection
       map.current.on("click", handleBuildingClick);
     }
-  }, [handleBuildingClick]);
+  }, [handleBuildingClick, handleDrawCreate]);
 
   // Update cursor based on active tool
   useEffect(() => {
     if (map.current) {
-      map.current.getCanvas().style.cursor = activeTool === "select" ? "pointer" : "";
+      const cursor = activeTool === "select" ? "pointer" : activeTool === "draw" ? "crosshair" : "";
+      map.current.getCanvas().style.cursor = cursor;
     }
   }, [activeTool]);
 
@@ -249,7 +399,16 @@ export default function MapPage() {
         <BuildingDetailsPanel
           selectedBuilding={selectedBuilding}
           onClose={clearSelection}
+          onDeleteArea={selectedBuilding.polygon ? () => handleDeleteArea(selectedBuilding.polygon!) : undefined}
           isLoading={isLoadingAddress}
+          accessToken={process.env.NEXT_PUBLIC_MAPBOX_TOKEN || ""}
+        />
+      )}
+      {drawnArea && (
+        <BuildingDetailsPanel
+          drawnArea={drawnArea}
+          onClose={clearSelection}
+          onDeleteArea={() => handleDeleteArea(drawnArea.polygon)}
           accessToken={process.env.NEXT_PUBLIC_MAPBOX_TOKEN || ""}
         />
       )}
