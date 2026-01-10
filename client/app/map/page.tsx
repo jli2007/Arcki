@@ -13,6 +13,7 @@ import { TeleportModal } from "@/components/TeleportModal";
 import { InsertModelModal } from "@/components/InsertModelModal";
 import { AssetManagerPanel } from "@/components/AssetManagerPanel";
 import { Prompt3DGenerator } from "@/components/Prompt3DGenerator";
+import { TransformGizmo } from "@/components/TransformGizmo";
 
 interface SelectedBuilding {
   id: string | number;
@@ -40,6 +41,7 @@ interface PendingModel {
 interface InsertedModel {
   id: string;
   position: [number, number];
+  height: number;
   modelUrl: string;
   scale: number;
   rotationX: number;
@@ -100,6 +102,9 @@ export default function MapPage() {
   const [insertedModels, setInsertedModels] = useState<InsertedModel[]>([]);
   const [isPlacingModel, setIsPlacingModel] = useState(false);
   const [showAssetManager, setShowAssetManager] = useState(false);
+  const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
+  const [gizmoMode, setGizmoMode] = useState<"move" | "rotate">("move");
+  const [gizmoScreenPos, setGizmoScreenPos] = useState<{ x: number; y: number } | null>(null);
 
   const activeToolRef = useRef(activeTool);
   const deletedFeaturesRef = useRef(deletedFeatures);
@@ -107,6 +112,7 @@ export default function MapPage() {
   const pendingModelRef = useRef(pendingModel);
   const insertedModelsRef = useRef(insertedModels);
   const isPlacingModelRef = useRef(isPlacingModel);
+  const selectedModelIdRef = useRef(selectedModelId);
 
   useEffect(() => {
     deletedFeaturesRef.current = deletedFeatures;
@@ -130,6 +136,10 @@ export default function MapPage() {
   useEffect(() => {
     isPlacingModelRef.current = isPlacingModel;
   }, [isPlacingModel]);
+
+  useEffect(() => {
+    selectedModelIdRef.current = selectedModelId;
+  }, [selectedModelId]);
 
   // Helper to update the deleted areas on the map
   const updateDeletedAreasSource = useCallback((features: GeoJSON.Feature[]) => {
@@ -173,7 +183,7 @@ export default function MapPage() {
     });
   }, [updateDeletedAreasSource]);
 
-  // Keyboard shortcuts for undo/redo
+  // Keyboard shortcuts for undo/redo and escape to deselect
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const isMac = /Mac|iPod|iPhone|iPad/.test(navigator.userAgent);
@@ -185,6 +195,12 @@ export default function MapPage() {
       } else if (modifier && (e.key === "y" || (e.key === "z" && e.shiftKey))) {
         e.preventDefault();
         handleRedo();
+      } else if (e.key === "Escape") {
+        // Deselect model when pressing Escape
+        if (selectedModelIdRef.current) {
+          setSelectedModelId(null);
+          setGizmoScreenPos(null);
+        }
       }
     };
 
@@ -337,6 +353,7 @@ export default function MapPage() {
           properties: {
             "model-uri": m.modelUrl,
             "scale": m.scale,
+            "height": m.height,
             "rotationX": m.rotationX,
             "rotationY": m.rotationY,
             "rotationZ": m.rotationZ,
@@ -370,6 +387,107 @@ export default function MapPage() {
     });
   }, [updateModelsSource]);
 
+  // Update gizmo screen position for a model
+  const updateGizmoPosition = useCallback((modelId: string) => {
+    if (!map.current) return;
+    const model = insertedModelsRef.current.find(m => m.id === modelId);
+    if (model) {
+      const screenPos = map.current.project(model.position);
+      setGizmoScreenPos({ x: screenPos.x, y: screenPos.y });
+    }
+  }, []);
+
+  // Select a model for transform
+  const selectModel = useCallback((modelId: string | null) => {
+    setSelectedModelId(modelId);
+    if (modelId) {
+      updateGizmoPosition(modelId);
+    } else {
+      setGizmoScreenPos(null);
+    }
+  }, [updateGizmoPosition]);
+
+  // Handle gizmo move
+  const handleGizmoMove = useCallback((deltaX: number, deltaY: number) => {
+    if (!selectedModelIdRef.current || !map.current) return;
+
+    const model = insertedModelsRef.current.find(m => m.id === selectedModelIdRef.current);
+    if (!model) return;
+
+    // Convert current position to screen coords, add delta, convert back
+    const currentScreen = map.current.project(model.position);
+    const newScreen = { x: currentScreen.x + deltaX, y: currentScreen.y + deltaY };
+    const newGeo = map.current.unproject([newScreen.x, newScreen.y]);
+
+    setInsertedModels(prev => {
+      const updated = prev.map(m =>
+        m.id === selectedModelIdRef.current
+          ? { ...m, position: [newGeo.lng, newGeo.lat] as [number, number] }
+          : m
+      );
+      updateModelsSource(updated);
+      return updated;
+    });
+
+    // Update gizmo position
+    setGizmoScreenPos(newScreen);
+  }, [updateModelsSource]);
+
+  // Handle gizmo rotate (supports all 3 axes)
+  const handleGizmoRotate = useCallback((axis: "x" | "y" | "z", newRotation: number) => {
+    if (!selectedModelIdRef.current) return;
+
+    setInsertedModels(prev => {
+      const updated = prev.map(m => {
+        if (m.id !== selectedModelIdRef.current) return m;
+        if (axis === "x") return { ...m, rotationX: newRotation };
+        if (axis === "y") return { ...m, rotationY: newRotation };
+        return { ...m, rotationZ: newRotation };
+      });
+      updateModelsSource(updated);
+      return updated;
+    });
+  }, [updateModelsSource]);
+
+  // Handle gizmo height change (Y axis in world space)
+  const handleGizmoHeightChange = useCallback((deltaHeight: number) => {
+    if (!selectedModelIdRef.current) return;
+
+    setInsertedModels(prev => {
+      const updated = prev.map(m =>
+        m.id === selectedModelIdRef.current
+          ? { ...m, height: Math.max(0, m.height + deltaHeight) }
+          : m
+      );
+      updateModelsSource(updated);
+      return updated;
+    });
+  }, [updateModelsSource]);
+
+  // Check if click is near a model (helper function)
+  const getModelAtPoint = useCallback((point: { x: number; y: number }): InsertedModel | null => {
+    if (!map.current) return null;
+
+    const clickThreshold = 100; // pixels - how close you need to click to a model
+    let closestModel: InsertedModel | null = null;
+    let closestDistance = Infinity;
+
+    for (const model of insertedModelsRef.current) {
+      const modelScreenPos = map.current.project(model.position);
+      const distance = Math.sqrt(
+        Math.pow(point.x - modelScreenPos.x, 2) +
+        Math.pow(point.y - modelScreenPos.y, 2)
+      );
+
+      if (distance < clickThreshold && distance < closestDistance) {
+        closestDistance = distance;
+        closestModel = model;
+      }
+    }
+
+    return closestModel;
+  }, []);
+
   // Handle map click for model placement
   const handleModelPlacement = useCallback((e: mapboxgl.MapMouseEvent) => {
     if (!isPlacingModelRef.current || !pendingModelRef.current || !map.current) return;
@@ -378,6 +496,7 @@ export default function MapPage() {
     const newModel: InsertedModel = {
       id: `model-${Date.now()}`,
       position: [e.lngLat.lng, e.lngLat.lat],
+      height: 0,
       modelUrl: pending.url,
       scale: pending.scale,
       rotationX: pending.rotationX,
@@ -399,7 +518,22 @@ export default function MapPage() {
 
   const handleBuildingClick = useCallback(
     async (e: mapboxgl.MapMouseEvent) => {
-      if (activeToolRef.current !== "select" || !map.current) return;
+      if (!map.current) return;
+
+      // First, check if we clicked on a custom model (works with any tool)
+      const clickedModel = getModelAtPoint(e.point);
+      if (clickedModel) {
+        selectModel(clickedModel.id);
+        return;
+      }
+
+      // If we have a selected model and clicked elsewhere, deselect it
+      if (selectedModelIdRef.current) {
+        selectModel(null);
+      }
+
+      // Only proceed with building selection if in select mode
+      if (activeToolRef.current !== "select") return;
 
       const lng = e.lngLat.lng;
       const lat = e.lngLat.lat;
@@ -456,7 +590,7 @@ export default function MapPage() {
       });
       setIsLoadingAddress(false);
     },
-    []
+    [getModelAtPoint, selectModel]
   );
 
   useEffect(() => {
@@ -608,6 +742,7 @@ export default function MapPage() {
             "model-opacity": 1,
             "model-rotation": [["get", "rotationX"], ["get", "rotationY"], ["get", "rotationZ"]],
             "model-scale": [["get", "scale"], ["get", "scale"], ["get", "scale"]],
+            "model-translation": [0, 0, ["get", "height"]],
             "model-cast-shadows": true,
             "model-emissive-strength": 0.6,
           },
@@ -616,6 +751,17 @@ export default function MapPage() {
 
       map.current.on("click", handleBuildingClick);
       map.current.on("click", handleModelPlacement);
+
+      // Update gizmo position when map moves
+      map.current.on("move", () => {
+        if (selectedModelIdRef.current && map.current) {
+          const model = insertedModelsRef.current.find(m => m.id === selectedModelIdRef.current);
+          if (model) {
+            const screenPos = map.current.project(model.position);
+            setGizmoScreenPos({ x: screenPos.x, y: screenPos.y });
+          }
+        }
+      });
     }
   }, [handleBuildingClick, handleDrawCreate, handleModelPlacement]);
 
@@ -696,6 +842,27 @@ export default function MapPage() {
             // TODO: Integrate with 3D generation API
             // For now, just log it
           }}
+        />
+      )}
+      {selectedModelId && gizmoScreenPos && (
+        <TransformGizmo
+          screenPosition={gizmoScreenPos}
+          mode={gizmoMode}
+          currentRotation={{
+            x: insertedModels.find(m => m.id === selectedModelId)?.rotationX ?? 0,
+            y: insertedModels.find(m => m.id === selectedModelId)?.rotationY ?? 0,
+            z: insertedModels.find(m => m.id === selectedModelId)?.rotationZ ?? 0,
+          }}
+          onMoveStart={() => {
+            map.current?.dragPan.disable();
+          }}
+          onMove={handleGizmoMove}
+          onMoveEnd={() => {
+            map.current?.dragPan.enable();
+          }}
+          onHeightChange={handleGizmoHeightChange}
+          onRotate={handleGizmoRotate}
+          onModeChange={setGizmoMode}
         />
       )}
       <div ref={mapContainer} className="h-full w-full" />
