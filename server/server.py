@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings, init_directories
-from app.routes import generation_router, files_router, health_router
+from app.routes import generation_router, files_router, health_router, search_router
 from app.services import OpenAIService, FalService
 
 # Initialize app
@@ -29,6 +29,7 @@ app.add_middleware(
 app.include_router(health_router)
 app.include_router(generation_router)
 app.include_router(files_router)
+app.include_router(search_router, prefix="/api")
 
 # Initialize directories on startup
 @app.on_event("startup")

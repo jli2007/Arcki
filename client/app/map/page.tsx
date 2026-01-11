@@ -106,6 +106,14 @@ export default function MapPage() {
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
   const [gizmoMode, setGizmoMode] = useState<"move" | "rotate">("move");
   const [gizmoScreenPos, setGizmoScreenPos] = useState<{ x: number; y: number } | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchResult, setSearchResult] = useState<{
+    answer: string;
+    target: GeoJSON.Feature | null;
+    targetCenter: [number, number] | null;
+    candidates: GeoJSON.Feature[];
+  } | null>(null);
 
   // Model transform history for undo/redo
   const [modelHistory, setModelHistory] = useState<InsertedModel[]>([]);
@@ -317,6 +325,87 @@ export default function MapPage() {
     }
     setActiveTool(null);
   }, []);
+
+  // Handle search
+  const handleSearch = useCallback(async () => {
+    if (!map.current || !searchQuery.trim()) return;
+    
+    setIsSearching(true);
+    
+    try {
+      // Get viewport bounds
+      const bounds = map.current.getBounds();
+      if (!bounds) {
+        alert("Map not ready. Please wait a moment and try again.");
+        return;
+      }
+      const west = bounds.getWest();
+      const south = bounds.getSouth();
+      const east = bounds.getEast();
+      const north = bounds.getNorth();
+      
+      let apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      // Ensure API URL has protocol
+      if (!apiUrl.startsWith("http://") && !apiUrl.startsWith("https://")) {
+        apiUrl = `http://${apiUrl}`;
+      }
+      
+      const response = await fetch(
+        `${apiUrl}/api/search?q=${encodeURIComponent(searchQuery)}&south=${south}&west=${west}&north=${north}&east=${east}`
+      );
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ detail: response.statusText }));
+        alert(`Search failed: ${errorData.detail || response.statusText}`);
+        return;
+      }
+      
+      const data = await response.json();
+      setSearchResult({
+        answer: data.answer,
+        target: data.target,
+        targetCenter: data.targetCenter,
+        candidates: data.candidates || []
+      });
+      
+      // Fly to target building
+      if (data.targetCenter && map.current) {
+        map.current.flyTo({
+          center: data.targetCenter,
+          zoom: 17,
+          pitch: 60,
+          bearing: -17.6,
+          duration: 2000,
+        });
+      }
+      
+      // Highlight target building
+      if (data.target && map.current) {
+        const source = map.current.getSource("search-target") as mapboxgl.GeoJSONSource;
+        if (source) {
+          source.setData({
+            type: "FeatureCollection",
+            features: [data.target]
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Search error:", error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      // Check if it's a network error
+      let apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      if (!apiUrl.startsWith("http://") && !apiUrl.startsWith("https://")) {
+        apiUrl = `http://${apiUrl}`;
+      }
+      if (errorMessage.includes("Failed to fetch") || errorMessage.includes("NetworkError")) {
+        alert(`Cannot connect to backend server. Make sure it's running on ${apiUrl}`);
+      } else {
+        alert(`Search failed: ${errorMessage}`);
+      }
+    } finally {
+      setIsSearching(false);
+    }
+  }, [searchQuery]);
 
   // Clear selection when tool changes
   useEffect(() => {
@@ -781,6 +870,12 @@ export default function MapPage() {
           data: { type: "FeatureCollection", features: [] },
         });
 
+        // Add source for search target building
+        map.current.addSource("search-target", {
+          type: "geojson",
+          data: { type: "FeatureCollection", features: [] },
+        });
+
         // Add source for deleted areas (clip layer)
         map.current.addSource("deleted-areas", {
           type: "geojson",
@@ -832,6 +927,28 @@ export default function MapPage() {
           },
         });
 
+        // Add search target highlight layers
+        map.current.addLayer({
+          id: "search-target-fill",
+          type: "fill",
+          source: "search-target",
+          paint: {
+            "fill-color": "#fbbf24",
+            "fill-opacity": 0.4,
+          },
+        });
+
+        map.current.addLayer({
+          id: "search-target-outline",
+          type: "line",
+          source: "search-target",
+          paint: {
+            "line-color": "#f59e0b",
+            "line-width": 3,
+            "line-opacity": 1,
+          },
+        });
+
         // Add source for custom 3D models
         map.current.addSource("custom-models", {
           type: "geojson",
@@ -871,7 +988,7 @@ export default function MapPage() {
         }
       });
     }
-  }, [handleBuildingClick, handleDrawCreate, handleModelPlacement]);
+  }, [handleBuildingClick, handleDrawCreate, handleModelPlacement, handleSearch]);
 
   // Update cursor based on active tool and placement mode
   useEffect(() => {
@@ -979,6 +1096,55 @@ export default function MapPage() {
           onModeChange={setGizmoMode}
         />
       )}
+      {/* Search UI */}
+      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 w-full max-w-2xl px-4">
+        <div className="bg-black/90 backdrop-blur-md rounded-lg border border-white/20 shadow-xl p-4">
+          <div className="flex gap-2 mb-3">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  handleSearch();
+                }
+              }}
+              placeholder="e.g., 'tallest building in this area'"
+              className="flex-1 px-4 py-2 bg-white/10 text-white placeholder:text-white/50 rounded-lg border border-white/20 outline-none focus:border-cyan-400"
+            />
+            <button
+              onClick={handleSearch}
+              disabled={!searchQuery.trim() || isSearching}
+              className={`px-6 py-2 rounded-lg font-medium transition-colors ${
+                !searchQuery.trim() || isSearching
+                  ? "bg-white/10 text-white/50 cursor-not-allowed"
+                  : "bg-cyan-600 hover:bg-cyan-700 text-white"
+              }`}
+            >
+              {isSearching ? "Searching..." : "Search"}
+            </button>
+          </div>
+          
+          {/* Search Result */}
+          {searchResult && (
+            <div className="mt-3 pt-3 border-t border-white/20">
+              <div className="text-white font-medium mb-2">{searchResult.answer}</div>
+              {searchResult.candidates.length > 0 && (
+                <div className="text-sm text-white/70">
+                  <div className="font-medium mb-1">Top candidates:</div>
+                  <ul className="list-disc list-inside space-y-1">
+                    {searchResult.candidates.slice(0, 5).map((candidate, idx) => {
+                      const name = candidate.properties?.name || candidate.properties?.["addr:housename"] || `Building ${idx + 2}`;
+                      return <li key={candidate.id || idx}>{name}</li>;
+                    })}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+      
       <div ref={mapContainer} className="h-full w-full" />
     </div>
   );
