@@ -9,7 +9,6 @@ import "./glow.css";
 
 export default function Home() {
   const [currentSection, setCurrentSection] = useState(0);
-  const [photoCount, setPhotoCount] = useState(0);
   const [hasAnimated, setHasAnimated] = useState(false);
   const heroSectionRef = useRef<HTMLElement>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -59,27 +58,17 @@ export default function Home() {
   }, []); // Only run on mount
 
   const animateCount = () => {
-    const targetNumber = 100000; // Number of editable buildings across all cities
     const duration = 2000; // 2 seconds
     const steps = 60;
-    const increment = targetNumber / steps;
-    let currentCount = 0;
     let step = 0;
 
     const timer = setInterval(() => {
       step++;
-      currentCount = Math.min(Math.floor(increment * step), targetNumber);
-      setPhotoCount(currentCount);
 
       if (step >= steps) {
         clearInterval(timer);
-        setPhotoCount(targetNumber);
       }
     }, duration / steps);
-  };
-
-  const formatNumber = (num: number) => {
-    return num.toLocaleString();
   };
 
   useEffect(() => {
@@ -377,50 +366,6 @@ export default function Home() {
       }, 2000);
     };
 
-    // Start continuous subtle camera movement with smooth transitions
-    const startContinuousMovement = () => {
-      if (!mapRef.current) return;
-
-      let baseBearing = mapRef.current.getBearing();
-      let basePitch = mapRef.current.getPitch();
-      let time = 0;
-      let lastUpdateTime = Date.now();
-      const updateInterval = 500; // Update every 500ms for smooth movement
-
-      const updateCamera = () => {
-        if (!mapRef.current) return;
-
-        const now = Date.now();
-        const deltaTime = now - lastUpdateTime;
-
-        // Only update every 500ms to allow smooth easing
-        if (deltaTime >= updateInterval) {
-          time += 0.02; // Slow animation speed
-          
-          // Calculate target positions using smooth sinusoidal functions
-          const rotation = Math.sin(time) * 15; // ±15 degrees rotation
-          const targetBearing = baseBearing + rotation;
-
-          const pitchVariation = Math.sin(time * 0.7) * 3; // ±3 degrees pitch
-          const targetPitch = Math.max(45, Math.min(55, basePitch + pitchVariation));
-
-          // Use easeTo for smooth transitions (3 second duration for continuous smooth movement)
-          mapRef.current.easeTo({
-            bearing: targetBearing,
-            pitch: targetPitch,
-            duration: 3000,
-          });
-
-          lastUpdateTime = now;
-        }
-
-        animationFrameRef.current = requestAnimationFrame(updateCamera);
-      };
-
-      // Start the animation loop
-      updateCamera();
-    };
-
     // Wait for map to load before applying styles and animations
     mapRef.current.once("style.load", () => {
       if (mapRef.current) {
@@ -631,7 +576,7 @@ export default function Home() {
                 <div>
                   <h3 className="text-2xl font-bold mb-4 text-black">Technology</h3>
                   <p className="text-gray-600 leading-relaxed">
-                    Powered by Mapbox's advanced 3D rendering engine and integrated AI services, our platform delivers enterprise-level capabilities with intuitive, user-friendly interfaces.
+                    Powered by Mapbox&apos;s advanced 3D rendering engine and integrated AI services, our platform delivers enterprise-level capabilities with intuitive, user-friendly interfaces.
                   </p>
                 </div>
               </div>
