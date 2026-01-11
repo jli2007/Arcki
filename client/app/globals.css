@@ -132,3 +132,7 @@
 button{
   cursor: pointer !important;
 }
+
+button:disabled {
+  cursor: default;
+}

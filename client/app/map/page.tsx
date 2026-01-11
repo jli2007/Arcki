@@ -106,7 +106,6 @@ export default function MapPage() {
   const [pendingModel, setPendingModel] = useState<PendingModel | null>(null);
   const [insertedModels, setInsertedModels] = useState<InsertedModel[]>([]);
   const [isPlacingModel, setIsPlacingModel] = useState(false);
-  const [showAssetManager, setShowAssetManager] = useState(false);
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
   const [gizmoMode, setGizmoMode] = useState<"move" | "rotate">("move");
   const [gizmoScreenPos, setGizmoScreenPos] = useState<{ x: number; y: number } | null>(null);
@@ -732,10 +731,9 @@ export default function MapPage() {
       return updated;
     });
 
-    // Reset placement state and show asset manager
+    // Reset placement state
     setPendingModel(null);
     setIsPlacingModel(false);
-    setShowAssetManager(true);
   }, [updateModelsSource]);
 
   const handleBuildingClick = useCallback(
@@ -1075,8 +1073,6 @@ export default function MapPage() {
       <Toolbar
         activeTool={activeTool}
         setActiveTool={setActiveTool}
-        showAssetManager={showAssetManager}
-        onToggleAssetManager={() => setShowAssetManager(!showAssetManager)}
         showPromptGenerator={showPromptGenerator}
         onTogglePromptGenerator={() => setShowPromptGenerator(!showPromptGenerator)}
       />
@@ -1121,15 +1117,13 @@ export default function MapPage() {
           accessToken={process.env.NEXT_PUBLIC_MAPBOX_TOKEN || ""}
         />
       )}
-      {showAssetManager && (
-        <AssetManagerPanel
-          models={insertedModels}
-          onClose={() => setShowAssetManager(false)}
-          onFlyTo={handleFlyToModel}
-          onDelete={handleDeleteModel}
-          onUpdateModel={handleUpdateModel}
-        />
-      )}
+      <AssetManagerPanel
+        models={insertedModels}
+        onClose={() => {}}
+        onFlyTo={handleFlyToModel}
+        onDelete={handleDeleteModel}
+        onUpdateModel={handleUpdateModel}
+      />
       {showPromptGenerator && (
         <Prompt3DGenerator
           onClose={() => setShowPromptGenerator(false)}

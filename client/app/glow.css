@@ -4,64 +4,23 @@
     inset: 0;
     z-index: 1;
     pointer-events: none;
-    background: radial-gradient(ellipse at center,
-        transparent 0%,
-        rgba(0, 0, 0, 0.4) 60%,
-        rgba(0, 0, 0, 1) 100%);
+    background: radial-gradient(
+      ellipse at center,
+      transparent 0%,
+      rgba(0, 0, 0, 0.4) 60%,
+      rgba(0, 0, 0, 1) 100%
+    );
   }
 }
-
 
 @layer animations {
   @keyframes textGlow {
     0% {
-      text-shadow:
-        0 0 10px #fff,
-        0 0 20px #00ffff,
-        0 0 30px #00ffff;
+      text-shadow: 0 0 10px #fff, 0 0 20px #00ffff, 0 0 30px #00ffff;
     }
     100% {
-      text-shadow:
-        0 0 15px #fff,
-        0 0 25px #00ffff,
-        0 0 35px #00ffff,
+      text-shadow: 0 0 15px #fff, 0 0 25px #00ffff, 0 0 35px #00ffff,
         0 0 45px #00aaff;
-    }
-  }
-
-  @keyframes textGlowRed {
-
-    0%,
-    100% {
-      text-shadow:
-        0 0 10px #fff,
-        0 0 20px #ff1a1a,
-        0 0 30px #800080;
-    }
-
-    50% {
-      text-shadow:
-        0 0 15px #fff,
-        0 0 25px #ff3333,
-        0 0 35px #990099;
-    }
-  }
-
-  @keyframes textGlowBlue {
-
-    0%,
-    100% {
-      text-shadow:
-        0 0 10px #fff,
-        0 0 20px #0066cc,
-        0 0 30px #0099ff;
-    }
-
-    50% {
-      text-shadow:
-        0 0 15px #fff,
-        0 0 25px #0080ff,
-        0 0 35px #00aaff;
     }
   }
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Cross2Icon, CubeIcon, TrashIcon, TargetIcon } from "@radix-ui/react-icons";
+import { CubeIcon, TrashIcon, TargetIcon } from "@radix-ui/react-icons";
 
 interface InsertedModel {
   id: string;
@@ -91,18 +91,10 @@ export function AssetManagerPanel({
   return (
     <div className="absolute bottom-8 left-4 z-10 w-80 rounded-2xl bg-black/40 backdrop-blur-md border border-white/10 shadow-xl overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between p-3 border-b border-white/10">
-        <div className="flex items-center gap-2">
-          <CubeIcon className="text-white/60" width={16} height={16} />
-          <h3 className="text-white font-semibold text-sm">Assets</h3>
-          <span className="text-white/40 text-xs">({models.length})</span>
-        </div>
-        <button
-          onClick={onClose}
-          className="p-1 rounded-full hover:bg-white/10 text-white/60 hover:text-white transition-all"
-        >
-          <Cross2Icon width={14} height={14} />
-        </button>
+      <div className="flex items-center gap-2 p-3 border-b border-white/10">
+        <CubeIcon className="text-white/60" width={16} height={16} />
+        <h3 className="text-white font-semibold text-sm">Assets</h3>
+        <span className="text-white/40 text-xs">({models.length})</span>
       </div>
 
       {/* Model list with fixed height and scroll (fits ~3 items) */}
