@@ -14,6 +14,7 @@ import { InsertModelModal } from "@/components/InsertModelModal";
 import { AssetManagerPanel } from "@/components/AssetManagerPanel";
 import { Prompt3DGenerator } from "@/components/Prompt3DGenerator";
 import { TransformGizmo } from "@/components/TransformGizmo";
+import { SearchBar } from "@/components/SearchBar";
 
 interface SelectedBuilding {
   id: string | number;
@@ -114,6 +115,15 @@ export default function MapPage() {
     targetCenter: [number, number] | null;
     candidates: GeoJSON.Feature[];
   } | null>(null);
+
+  // Quick prompt suggestions
+  const quickPrompts = [
+    "tallest building in this area",
+    "biggest footprint building",
+    "most underdeveloped building here",
+    "top 5 tallest buildings",
+    "largest building by area",
+  ];
 
   // Model transform history for undo/redo
   const [modelHistory, setModelHistory] = useState<InsertedModel[]>([]);
@@ -1097,47 +1107,77 @@ export default function MapPage() {
         />
       )}
       {/* Search UI */}
-      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 w-full max-w-2xl px-4">
-        <div className="bg-black/90 backdrop-blur-md rounded-lg border border-white/20 shadow-xl p-4">
-          <div className="flex gap-2 mb-3">
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  handleSearch();
-                }
-              }}
-              placeholder="e.g., 'tallest building in this area'"
-              className="flex-1 px-4 py-2 bg-white/10 text-white placeholder:text-white/50 rounded-lg border border-white/20 outline-none focus:border-cyan-400"
-            />
-            <button
-              onClick={handleSearch}
-              disabled={!searchQuery.trim() || isSearching}
-              className={`px-6 py-2 rounded-lg font-medium transition-colors ${
-                !searchQuery.trim() || isSearching
-                  ? "bg-white/10 text-white/50 cursor-not-allowed"
-                  : "bg-cyan-600 hover:bg-cyan-700 text-white"
-              }`}
-            >
-              {isSearching ? "Searching..." : "Search"}
-            </button>
-          </div>
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 w-full max-w-2xl px-4">
+        <div className="bg-black/40 backdrop-blur-md rounded-2xl border border-white/10 shadow-xl p-5">
+          <SearchBar
+            value={searchQuery}
+            onChange={setSearchQuery}
+            onSearch={handleSearch}
+            isLoading={isSearching}
+            placeholder="Search for buildings... (e.g., 'tallest building in this area')"
+            quickPrompts={quickPrompts}
+          />
           
           {/* Search Result */}
           {searchResult && (
-            <div className="mt-3 pt-3 border-t border-white/20">
-              <div className="text-white font-medium mb-2">{searchResult.answer}</div>
+            <div className="mt-4 pt-4 border-t border-white/10 transition-all duration-300">
+              <div className="text-white font-medium mb-2.5 text-base leading-relaxed">{searchResult.answer}</div>
               {searchResult.candidates.length > 0 && (
-                <div className="text-sm text-white/70">
-                  <div className="font-medium mb-1">Top candidates:</div>
-                  <ul className="list-disc list-inside space-y-1">
+                <div className="text-sm">
+                  <div className="font-medium mb-2.5 text-white/70">Top candidates:</div>
+                  <div className="flex flex-col gap-1.5">
                     {searchResult.candidates.slice(0, 5).map((candidate, idx) => {
                       const name = candidate.properties?.name || candidate.properties?.["addr:housename"] || `Building ${idx + 2}`;
-                      return <li key={candidate.id || idx}>{name}</li>;
+                      
+                      // Calculate center of candidate polygon using bbox
+                      const getCandidateCenter = (feature: GeoJSON.Feature): [number, number] | null => {
+                        try {
+                          const [minLng, minLat, maxLng, maxLat] = bbox({ type: "Feature", geometry: feature.geometry, properties: {} });
+                          return [(minLng + maxLng) / 2, (minLat + maxLat) / 2];
+                        } catch {
+                          return null;
+                        }
+                      };
+
+                      const candidateCenter = getCandidateCenter(candidate);
+                      
+                      return (
+                        <button
+                          key={candidate.id || idx}
+                          className="w-full text-left px-3 py-2 text-sm bg-white/5 hover:bg-white/10 text-white/70 hover:text-white rounded-lg border border-white/10 transition-all duration-200"
+                          onClick={() => {
+                            if (candidateCenter && map.current) {
+                              map.current.flyTo({
+                                center: candidateCenter,
+                                zoom: 17,
+                                pitch: 60,
+                                bearing: -17.6,
+                                duration: 2000,
+                              });
+                              
+                              // Highlight the candidate building
+                              const source = map.current.getSource("search-target") as mapboxgl.GeoJSONSource;
+                              if (source) {
+                                source.setData({
+                                  type: "FeatureCollection",
+                                  features: [candidate]
+                                });
+                              }
+                              
+                              // Update search result to show this candidate
+                              setSearchResult({
+                                ...searchResult,
+                                target: candidate,
+                                targetCenter: candidateCenter,
+                              });
+                            }
+                          }}
+                        >
+                          {name}
+                        </button>
+                      );
                     })}
-                  </ul>
+                  </div>
                 </div>
               )}
             </div>

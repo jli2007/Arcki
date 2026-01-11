@@ -18,5 +18,7 @@
     "lib": "@/lib",
     "hooks": "@/hooks"
   },
-  "registries": {}
+  "registries": {
+    "@kokonutui": "https://kokonutui.com/r/{name}.json"
+  }
 }
