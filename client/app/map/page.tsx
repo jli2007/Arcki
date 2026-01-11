@@ -16,6 +16,7 @@ import { Prompt3DGenerator } from "@/components/Prompt3DGenerator";
 import { TransformGizmo } from "@/components/TransformGizmo";
 import { SearchBar } from "@/components/SearchBar";
 import { SearchResultPopup } from "@/components/SearchResultPopup";
+import { MapControls } from "@/components/MapControls";
 import { GitHubLogoIcon } from "@radix-ui/react-icons";
 
 interface SelectedBuilding {
@@ -1336,6 +1337,7 @@ export default function MapPage() {
         weather={weather}
         onWeatherChange={setWeather}
       />
+      <MapControls map={map.current} />
       {activeTool === "insert" && (
         <InsertModelModal
           onClose={() => handleSetActiveTool(null)}
