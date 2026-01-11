@@ -15,6 +15,8 @@ import { InsertModelModal } from "@/components/InsertModelModal";
 import { AssetManagerPanel } from "@/components/AssetManagerPanel";
 import { Prompt3DGenerator } from "@/components/Prompt3DGenerator";
 import { TransformGizmo } from "@/components/TransformGizmo";
+import { SearchBar } from "@/components/SearchBar";
+import { SearchResultPopup } from "@/components/SearchResultPopup";
 
 interface SelectedBuilding {
   id: string | number;
@@ -108,6 +110,26 @@ export default function MapPage() {
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
   const [gizmoMode, setGizmoMode] = useState<"move" | "rotate">("move");
   const [gizmoScreenPos, setGizmoScreenPos] = useState<{ x: number; y: number } | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchResult, setSearchResult] = useState<{
+    intent: {
+      action: string;
+      location_query?: string;
+      building_attributes?: {
+        sort_by?: string;
+        building_type?: string;
+        limit?: number;
+      };
+      reasoning?: string;
+    };
+    answer: string;
+    coordinates?: [number, number] | null;
+    target?: GeoJSON.Feature | null;
+    candidates: GeoJSON.Feature[];
+    should_fly_to: boolean;
+    zoom_level?: number | null;
+  } | null>(null);
 
   // Model transform history for undo/redo
   const [modelHistory, setModelHistory] = useState<InsertedModel[]>([]);
@@ -319,6 +341,96 @@ export default function MapPage() {
     }
     setActiveTool(null);
   }, []);
+
+  // Handle search
+  const handleSearch = useCallback(async () => {
+    if (!map.current || !searchQuery.trim()) return;
+
+    setIsSearching(true);
+
+    try {
+      // Get viewport bounds and center
+      const bounds = map.current.getBounds();
+      const center = map.current.getCenter();
+
+      let apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      // Ensure API URL has protocol
+      if (!apiUrl.startsWith("http://") && !apiUrl.startsWith("https://")) {
+        apiUrl = `http://${apiUrl}`;
+      }
+
+      // Use POST with JSON body for the new agentic search
+      const response = await fetch(`${apiUrl}/api/search`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query: searchQuery,
+          current_bounds: bounds ? {
+            south: bounds.getSouth(),
+            west: bounds.getWest(),
+            north: bounds.getNorth(),
+            east: bounds.getEast()
+          } : null,
+          current_center: center ? [center.lng, center.lat] : null
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ detail: response.statusText }));
+        alert(`Search failed: ${errorData.detail || response.statusText}`);
+        return;
+      }
+
+      const data = await response.json();
+      setSearchResult(data);
+
+      // Handle navigation based on response
+      if (data.should_fly_to && data.coordinates && map.current) {
+        map.current.flyTo({
+          center: data.coordinates as [number, number],
+          zoom: data.zoom_level || 15,
+          pitch: 60,
+          bearing: -17.6,
+          duration: 2000,
+        });
+      }
+
+      // Highlight target building if present
+      if (data.target && map.current) {
+        const source = map.current.getSource("search-target") as mapboxgl.GeoJSONSource;
+        if (source) {
+          source.setData({
+            type: "FeatureCollection",
+            features: [data.target]
+          });
+        }
+      } else if (map.current) {
+        // Clear highlight if no target
+        const source = map.current.getSource("search-target") as mapboxgl.GeoJSONSource;
+        if (source) {
+          source.setData({
+            type: "FeatureCollection",
+            features: []
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Search error:", error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      // Check if it's a network error
+      let apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      if (!apiUrl.startsWith("http://") && !apiUrl.startsWith("https://")) {
+        apiUrl = `http://${apiUrl}`;
+      }
+      if (errorMessage.includes("Failed to fetch") || errorMessage.includes("NetworkError")) {
+        alert(`Cannot connect to backend server. Make sure it's running on ${apiUrl}`);
+      } else {
+        alert(`Search failed: ${errorMessage}`);
+      }
+    } finally {
+      setIsSearching(false);
+    }
+  }, [searchQuery]);
 
   // Clear selection when tool changes
   useEffect(() => {
@@ -781,6 +893,12 @@ export default function MapPage() {
           data: { type: "FeatureCollection", features: [] },
         });
 
+        // Add source for search target building
+        map.current.addSource("search-target", {
+          type: "geojson",
+          data: { type: "FeatureCollection", features: [] },
+        });
+
         // Add source for deleted areas (clip layer)
         map.current.addSource("deleted-areas", {
           type: "geojson",
@@ -832,6 +950,28 @@ export default function MapPage() {
           },
         });
 
+        // Add search target highlight layers
+        map.current.addLayer({
+          id: "search-target-fill",
+          type: "fill",
+          source: "search-target",
+          paint: {
+            "fill-color": "#fbbf24",
+            "fill-opacity": 0.4,
+          },
+        });
+
+        map.current.addLayer({
+          id: "search-target-outline",
+          type: "line",
+          source: "search-target",
+          paint: {
+            "line-color": "#f59e0b",
+            "line-width": 3,
+            "line-opacity": 1,
+          },
+        });
+
         // Add source for custom 3D models
         map.current.addSource("custom-models", {
           type: "geojson",
@@ -872,7 +1012,7 @@ export default function MapPage() {
         }
       });
     }
-  }, [handleBuildingClick, handleDrawCreate, handleModelPlacement]);
+  }, [handleBuildingClick, handleDrawCreate, handleModelPlacement, handleSearch]);
 
   // Update cursor based on active tool and placement mode
   useEffect(() => {
@@ -1018,6 +1158,63 @@ export default function MapPage() {
           onModeChange={setGizmoMode}
         />
       )}
+      {/* Search Result Popup - positioned above search bar */}
+      {searchResult && (
+        <SearchResultPopup
+          result={searchResult}
+          onClose={() => setSearchResult(null)}
+          onCandidateClick={(candidate) => {
+            // Calculate center of candidate polygon using bbox
+            try {
+              const [minLng, minLat, maxLng, maxLat] = bbox({ type: "Feature", geometry: candidate.geometry, properties: {} });
+              const candidateCenter: [number, number] = [(minLng + maxLng) / 2, (minLat + maxLat) / 2];
+
+              if (map.current) {
+                map.current.flyTo({
+                  center: candidateCenter,
+                  zoom: 17,
+                  pitch: 60,
+                  bearing: -17.6,
+                  duration: 2000,
+                });
+
+                // Highlight the candidate building
+                const source = map.current.getSource("search-target") as mapboxgl.GeoJSONSource;
+                if (source) {
+                  source.setData({
+                    type: "FeatureCollection",
+                    features: [candidate]
+                  });
+                }
+
+                // Update search result to show this candidate as target
+                setSearchResult({
+                  ...searchResult,
+                  target: candidate,
+                  coordinates: candidateCenter,
+                });
+              }
+            } catch (error) {
+              console.error("Error calculating candidate center:", error);
+            }
+          }}
+        />
+      )}
+
+      {/* Search Bar */}
+      <div
+        data-search-container
+        className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 rounded-2xl bg-black/40 backdrop-blur-md border border-white/10 px-4 py-2 shadow-xl w-[500px]"
+      >
+        <SearchBar
+          value={searchQuery}
+          onChange={setSearchQuery}
+          onSearch={handleSearch}
+          isLoading={isSearching}
+          placeholder="Search anywhere... (e.g., 'take me to Paris', 'tallest building')"
+        />
+      </div>
+      
       <div ref={mapContainer} className="h-full w-full" />
     </div>
   );
