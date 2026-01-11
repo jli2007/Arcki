@@ -118,15 +118,6 @@ export default function MapPage() {
     candidates: GeoJSON.Feature[];
   } | null>(null);
 
-  // Quick prompt suggestions
-  const quickPrompts = [
-    "tallest building in this area",
-    "biggest footprint building",
-    "most underdeveloped building here",
-    "top 5 tallest buildings",
-    "largest building by area",
-  ];
-
   // Model transform history for undo/redo
   const [modelHistory, setModelHistory] = useState<InsertedModel[]>([]);
   const [modelRedoStack, setModelRedoStack] = useState<InsertedModel[]>([]);
@@ -1146,82 +1137,79 @@ export default function MapPage() {
         />
       )}
       {/* Search UI */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 w-full max-w-2xl px-4">
-        <div className="bg-black/40 backdrop-blur-md rounded-2xl border border-white/10 shadow-xl p-5">
-          <SearchBar
-            value={searchQuery}
-            onChange={setSearchQuery}
-            onSearch={handleSearch}
-            isLoading={isSearching}
-            placeholder="Search for buildings... (e.g., 'tallest building in this area')"
-            quickPrompts={quickPrompts}
-          />
-          
-          {/* Search Result */}
-          {searchResult && (
-            <div className="mt-4 pt-4 border-t border-white/10 transition-all duration-300">
-              <div className="text-white font-medium mb-2.5 text-base leading-relaxed">{searchResult.answer}</div>
-              {searchResult.candidates.length > 0 && (
-                <div className="text-sm">
-                  <div className="font-medium mb-2.5 text-white/70">Top candidates:</div>
-                  <div className="flex flex-col gap-1.5">
-                    {searchResult.candidates.slice(0, 5).map((candidate, idx) => {
-                      const name = candidate.properties?.name || candidate.properties?.["addr:housename"] || `Building ${idx + 2}`;
-                      
-                      // Calculate center of candidate polygon using bbox
-                      const getCandidateCenter = (feature: GeoJSON.Feature): [number, number] | null => {
-                        try {
-                          const [minLng, minLat, maxLng, maxLat] = bbox({ type: "Feature", geometry: feature.geometry, properties: {} });
-                          return [(minLng + maxLng) / 2, (minLat + maxLat) / 2];
-                        } catch {
-                          return null;
-                        }
-                      };
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 flex flex-row items-center gap-4 h-16 rounded-2xl bg-black/40 backdrop-blur-md border border-white/10 px-6 shadow-xl min-w-[500px]">
+        <SearchBar
+          value={searchQuery}
+          onChange={setSearchQuery}
+          onSearch={handleSearch}
+          isLoading={isSearching}
+          placeholder="Search for buildings... (e.g., 'tallest building in this area')"
+        />
+        
+        {/* Search Result */}
+        {searchResult && (
+          <div className="ml-4 pl-4 border-l border-white/10 transition-all duration-300">
+            <div className="text-white font-medium mb-2.5 text-base leading-relaxed">{searchResult.answer}</div>
+            {searchResult.candidates.length > 0 && (
+              <div className="text-sm">
+                <div className="font-medium mb-2.5 text-white/70">Top candidates:</div>
+                <div className="flex flex-col gap-1.5">
+                  {searchResult.candidates.slice(0, 5).map((candidate, idx) => {
+                    const name = candidate.properties?.name || candidate.properties?.["addr:housename"] || `Building ${idx + 2}`;
+                    
+                    // Calculate center of candidate polygon using bbox
+                    const getCandidateCenter = (feature: GeoJSON.Feature): [number, number] | null => {
+                      try {
+                        const [minLng, minLat, maxLng, maxLat] = bbox({ type: "Feature", geometry: feature.geometry, properties: {} });
+                        return [(minLng + maxLng) / 2, (minLat + maxLat) / 2];
+                      } catch {
+                        return null;
+                      }
+                    };
 
-                      const candidateCenter = getCandidateCenter(candidate);
-                      
-                      return (
-                        <button
-                          key={candidate.id || idx}
-                          className="w-full text-left px-3 py-2 text-sm bg-white/5 hover:bg-white/10 text-white/70 hover:text-white rounded-lg border border-white/10 transition-all duration-200"
-                          onClick={() => {
-                            if (candidateCenter && map.current) {
-                              map.current.flyTo({
-                                center: candidateCenter,
-                                zoom: 17,
-                                pitch: 60,
-                                bearing: -17.6,
-                                duration: 2000,
-                              });
-                              
-                              // Highlight the candidate building
-                              const source = map.current.getSource("search-target") as mapboxgl.GeoJSONSource;
-                              if (source) {
-                                source.setData({
-                                  type: "FeatureCollection",
-                                  features: [candidate]
-                                });
-                              }
-                              
-                              // Update search result to show this candidate
-                              setSearchResult({
-                                ...searchResult,
-                                target: candidate,
-                                targetCenter: candidateCenter,
+                    const candidateCenter = getCandidateCenter(candidate);
+                    
+                    return (
+                      <button
+                        key={candidate.id || idx}
+                        className="w-full text-left px-3 py-2 text-sm bg-white/5 hover:bg-white/10 text-white/70 hover:text-white rounded-lg border border-white/10 transition-all duration-200"
+                        onClick={() => {
+                          if (candidateCenter && map.current) {
+                            map.current.flyTo({
+                              center: candidateCenter,
+                              zoom: 17,
+                              pitch: 60,
+                              bearing: -17.6,
+                              duration: 2000,
+                            });
+                            
+                            // Highlight the candidate building
+                            const source = map.current.getSource("search-target") as mapboxgl.GeoJSONSource;
+                            if (source) {
+                              source.setData({
+                                type: "FeatureCollection",
+                                features: [candidate]
                               });
                             }
-                          }}
-                        >
-                          {name}
-                        </button>
-                      );
-                    })}
-                  </div>
+                            
+                            // Update search result to show this candidate
+                            setSearchResult({
+                              ...searchResult,
+                              target: candidate,
+                              targetCenter: candidateCenter,
+                            });
+                          }
+                        }}
+                      >
+                        {name}
+                      </button>
+                    );
+                  })}
                 </div>
-              )}
-            </div>
-          )}
-        </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
       
       <div ref={mapContainer} className="h-full w-full" />
