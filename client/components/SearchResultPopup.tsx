@@ -1,6 +1,9 @@
 "use client";
 
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
+
+// Quick actions that should auto-dismiss
+const QUICK_ACTIONS = ["set_weather", "set_time", "camera_control"];
 
 interface SearchResult {
   intent: {
@@ -13,12 +16,81 @@ interface SearchResult {
     };
     reasoning?: string;
   };
+  action?: string; // Primary action type
   answer: string;
   coordinates?: [number, number] | null;
   target?: GeoJSON.Feature | null;
   candidates: GeoJSON.Feature[];
   should_fly_to: boolean;
   zoom_level?: number | null;
+  weather_settings?: { type: string };
+  time_settings?: { preset: string };
+  camera_settings?: { zoom_delta?: number; pitch?: number; bearing_delta?: number };
+  delete_target?: GeoJSON.Feature;
+  qa_data?: Record<string, unknown>;
+}
+
+// Get icon and label for different action types
+function getActionDisplay(result: SearchResult): { icon: JSX.Element; label: string } {
+  const action = result.action || result.intent?.action;
+
+  switch (action) {
+    case "set_weather":
+      return {
+        icon: (
+          <svg className="w-4 h-4 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
+          </svg>
+        ),
+        label: "Weather Changed",
+      };
+    case "set_time":
+      return {
+        icon: (
+          <svg className="w-4 h-4 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+          </svg>
+        ),
+        label: "Time Changed",
+      };
+    case "camera_control":
+      return {
+        icon: (
+          <svg className="w-4 h-4 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+          </svg>
+        ),
+        label: "Camera Adjusted",
+      };
+    case "delete_building":
+      return {
+        icon: (
+          <svg className="w-4 h-4 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+        ),
+        label: "Building Deleted",
+      };
+    case "question":
+      return {
+        icon: (
+          <svg className="w-4 h-4 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        ),
+        label: "Answer",
+      };
+    default:
+      return {
+        icon: (
+          <svg className="w-4 h-4 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+          </svg>
+        ),
+        label: "Search Result",
+      };
+  }
 }
 
 interface SearchResultPopupProps {
@@ -43,6 +115,29 @@ export function SearchResultPopup({
   onCandidateClick,
 }: SearchResultPopupProps) {
   const popupRef = useRef<HTMLDivElement>(null);
+  const [isFadingOut, setIsFadingOut] = useState(false);
+
+  // Check if this is a quick action that should auto-dismiss
+  const action = result.action || result.intent?.action;
+  const isQuickAction = QUICK_ACTIONS.includes(action || "");
+
+  // Auto-dismiss for quick actions after 2 seconds
+  useEffect(() => {
+    if (!isQuickAction) return;
+
+    const fadeTimer = setTimeout(() => {
+      setIsFadingOut(true);
+    }, 2000);
+
+    const closeTimer = setTimeout(() => {
+      onClose();
+    }, 2300); // 2s delay + 0.3s fade animation
+
+    return () => {
+      clearTimeout(fadeTimer);
+      clearTimeout(closeTimer);
+    };
+  }, [isQuickAction, onClose]);
 
   // Close on escape key
   useEffect(() => {
@@ -86,26 +181,16 @@ export function SearchResultPopup({
   return (
     <div
       ref={popupRef}
-      className="absolute bottom-24 left-1/2 -translate-x-1/2 z-20 w-[500px] max-h-[320px] rounded-2xl bg-black/60 backdrop-blur-md border border-white/10 shadow-xl overflow-hidden animate-[fadeIn_0.2s_ease-out_forwards]"
+      className={`absolute bottom-24 left-1/2 -translate-x-1/2 z-20 w-[500px] max-h-[320px] rounded-2xl bg-black/60 backdrop-blur-md border border-white/10 shadow-xl overflow-hidden transition-opacity duration-300 ${
+        isFadingOut ? "opacity-0" : "opacity-100 animate-[fadeIn_0.2s_ease-out_forwards]"
+      }`}
     >
       {/* Header with close button */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
         <div className="flex items-center gap-2">
-          <svg
-            className="w-4 h-4 text-white/60"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
-            />
-          </svg>
+          {getActionDisplay(result).icon}
           <span className="text-xs text-white/50 uppercase tracking-wide font-medium">
-            Search Result
+            {getActionDisplay(result).label}
           </span>
         </div>
         <button

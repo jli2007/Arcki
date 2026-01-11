@@ -106,8 +106,8 @@ export function AssetManagerPanel({
                 key={model.id}
                 className="flex items-start gap-2 p-2 rounded-lg hover:bg-white/5 group"
               >
-                <div className="w-8 h-8 rounded-lg bg-cyan-500/20 flex items-center justify-center shrink-0 mt-0.5">
-                  <CubeIcon className="text-cyan-400" width={16} height={16} />
+                <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center shrink-0 mt-0.5">
+                  <CubeIcon className="text-white" width={16} height={16} />
                 </div>
                 <div className="flex-1 min-w-0">
                   {/* Name row - editable */}
@@ -119,13 +119,13 @@ export function AssetManagerPanel({
                         onChange={(e) => setEditValue(e.target.value)}
                         onBlur={() => handleSaveEdit(model.id)}
                         onKeyDown={(e) => handleKeyDown(e, model.id)}
-                        className="flex-1 bg-white/10 rounded px-2 py-0.5 text-white text-sm font-medium outline-none border border-cyan-400/50"
+                        className="flex-1 bg-white/10 rounded px-2 py-0.5 text-white text-sm font-medium outline-none border border-white/30"
                         autoFocus
                       />
                     ) : (
                       <button
                         onClick={() => handleStartEdit(model, index, "name")}
-                        className="text-white text-sm font-medium truncate hover:text-cyan-400 transition-colors text-left"
+                        className="text-white text-sm font-medium truncate hover:text-white transition-colors text-left"
                         title="Click to rename"
                       >
                         {model.name || `Model ${index + 1}`}
@@ -144,13 +144,13 @@ export function AssetManagerPanel({
                         onChange={(e) => setEditValue(e.target.value)}
                         onBlur={() => handleSaveEdit(model.id)}
                         onKeyDown={(e) => handleKeyDown(e, model.id)}
-                        className="w-16 bg-white/10 rounded px-2 py-0.5 text-cyan-400 text-sm font-medium outline-none border border-cyan-400/50"
+                        className="w-16 bg-white/10 rounded px-2 py-0.5 text-white text-sm font-medium outline-none border border-white/30"
                         autoFocus
                       />
                     ) : (
                       <button
                         onClick={() => handleStartEdit(model, index, "scale")}
-                        className="text-cyan-400 text-sm font-medium hover:text-cyan-300 transition-colors"
+                        className="text-white text-sm font-medium hover:text-white/80 transition-colors"
                         title="Click to edit scale"
                       >
                         {model.scale.toFixed(2)}x
@@ -162,7 +162,7 @@ export function AssetManagerPanel({
                   <div className="flex items-center gap-1.5 text-white/40 text-xs mt-1">
                     <span className="text-white/30">Pos:</span>
                     {editingId === model.id && editingField === "positionX" ? (
-                      <span className="text-cyan-400">
+                      <span className="text-white">
                         X:<input
                           type="text"
                           inputMode="decimal"
@@ -170,21 +170,21 @@ export function AssetManagerPanel({
                           onChange={(e) => setEditValue(e.target.value)}
                           onBlur={() => handleSaveEdit(model.id)}
                           onKeyDown={(e) => handleKeyDown(e, model.id)}
-                          className="w-20 bg-transparent border-none outline-none text-cyan-400 text-xs"
+                          className="w-20 bg-transparent border-none outline-none text-white text-xs"
                           autoFocus
                         />
                       </span>
                     ) : (
                       <button
                         onClick={() => handleStartEdit(model, index, "positionX")}
-                        className="hover:text-cyan-400 transition-colors"
+                        className="hover:text-white transition-colors"
                         title="Longitude (X)"
                       >
                         X:{model.position[0].toFixed(4)}
                       </button>
                     )}
                     {editingId === model.id && editingField === "positionY" ? (
-                      <span className="text-cyan-400">
+                      <span className="text-white">
                         Y:<input
                           type="text"
                           inputMode="decimal"
@@ -192,21 +192,21 @@ export function AssetManagerPanel({
                           onChange={(e) => setEditValue(e.target.value)}
                           onBlur={() => handleSaveEdit(model.id)}
                           onKeyDown={(e) => handleKeyDown(e, model.id)}
-                          className="w-20 bg-transparent border-none outline-none text-cyan-400 text-xs"
+                          className="w-20 bg-transparent border-none outline-none text-white text-xs"
                           autoFocus
                         />
                       </span>
                     ) : (
                       <button
                         onClick={() => handleStartEdit(model, index, "positionY")}
-                        className="hover:text-cyan-400 transition-colors"
+                        className="hover:text-white transition-colors"
                         title="Latitude (Y)"
                       >
                         Y:{model.position[1].toFixed(4)}
                       </button>
                     )}
                     {editingId === model.id && editingField === "height" ? (
-                      <span className="text-cyan-400">
+                      <span className="text-white">
                         Z:<input
                           type="text"
                           inputMode="decimal"
@@ -214,14 +214,14 @@ export function AssetManagerPanel({
                           onChange={(e) => setEditValue(e.target.value)}
                           onBlur={() => handleSaveEdit(model.id)}
                           onKeyDown={(e) => handleKeyDown(e, model.id)}
-                          className="w-12 bg-transparent border-none outline-none text-cyan-400 text-xs"
+                          className="w-12 bg-transparent border-none outline-none text-white text-xs"
                           autoFocus
                         />
                       </span>
                     ) : (
                       <button
                         onClick={() => handleStartEdit(model, index, "height")}
-                        className="hover:text-cyan-400 transition-colors"
+                        className="hover:text-white transition-colors"
                         title="Height (Z)"
                       >
                         Z:{model.height.toFixed(1)}

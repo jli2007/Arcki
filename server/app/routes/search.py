@@ -280,7 +280,189 @@ async def agentic_search(request: SearchRequest):
         action = intent.get("action", "search_area")
 
         # Step 2: Route based on action
-        if action == "navigate":
+
+        # === Weather Control ===
+        if action == "set_weather":
+            weather_settings = intent.get("weather_settings", {"type": "clear"})
+            weather_type = weather_settings.get("type", "clear")
+            answer_map = {
+                "rain": "Making it rain...",
+                "snow": "Adding snow effect...",
+                "clear": "Clearing the weather..."
+            }
+            return {
+                "intent": intent,
+                "action": "set_weather",
+                "answer": answer_map.get(weather_type, f"Setting weather to {weather_type}"),
+                "weather_settings": weather_settings,
+                "coordinates": None,
+                "target": None,
+                "candidates": [],
+                "should_fly_to": False,
+                "zoom_level": None
+            }
+
+        # === Time Control ===
+        elif action == "set_time":
+            time_settings = intent.get("time_settings", {"preset": "day"})
+            preset = time_settings.get("preset", "day")
+            answer_map = {
+                "night": "Switching to night mode...",
+                "day": "Switching to day mode..."
+            }
+            return {
+                "intent": intent,
+                "action": "set_time",
+                "answer": answer_map.get(preset, f"Setting time to {preset}"),
+                "time_settings": time_settings,
+                "coordinates": None,
+                "target": None,
+                "candidates": [],
+                "should_fly_to": False,
+                "zoom_level": None
+            }
+
+        # === Camera Control ===
+        elif action == "camera_control":
+            camera_settings = intent.get("camera_settings", {})
+
+            # Generate appropriate answer
+            if camera_settings.get("zoom_delta"):
+                delta = camera_settings["zoom_delta"]
+                answer = "Zooming in..." if delta > 0 else "Zooming out..."
+            elif camera_settings.get("pitch") == 0:
+                answer = "Switching to bird's eye view..."
+            elif camera_settings.get("pitch"):
+                answer = "Adjusting camera tilt..."
+            elif camera_settings.get("bearing_delta"):
+                answer = "Rotating the view..."
+            else:
+                answer = "Adjusting camera..."
+
+            return {
+                "intent": intent,
+                "action": "camera_control",
+                "answer": answer,
+                "camera_settings": camera_settings,
+                "coordinates": None,
+                "target": None,
+                "candidates": [],
+                "should_fly_to": False,
+                "zoom_level": None
+            }
+
+        # === Delete Building ===
+        elif action == "delete_building":
+            location_query = intent.get("location_query")
+
+            if location_query:
+                # Geocode the location to find the building
+                location = await geocoding_svc.geocode(location_query)
+                if location:
+                    # Fetch building at location
+                    bbox = expand_bbox_from_center([location.lon, location.lat], 0.2)
+                    buildings = await fetch_buildings_in_bbox(bbox, include_towers=True)
+
+                    if buildings:
+                        # Find best matching building (first one for now)
+                        target = buildings[0]
+                        target_center = get_building_center(target)
+                        return {
+                            "intent": intent,
+                            "action": "delete_building",
+                            "answer": f"Deleting building at {location.display_name}...",
+                            "coordinates": target_center,
+                            "target": None,
+                            "delete_target": target,
+                            "candidates": [],
+                            "should_fly_to": True,
+                            "zoom_level": 18
+                        }
+                    else:
+                        return {
+                            "intent": intent,
+                            "action": "delete_building",
+                            "answer": f"No buildings found at {location_query}.",
+                            "coordinates": [location.lon, location.lat],
+                            "target": None,
+                            "candidates": [],
+                            "should_fly_to": True,
+                            "zoom_level": 17
+                        }
+                else:
+                    return {
+                        "intent": intent,
+                        "action": "delete_building",
+                        "answer": f"Couldn't find location: {location_query}",
+                        "coordinates": None,
+                        "target": None,
+                        "candidates": [],
+                        "should_fly_to": False,
+                        "zoom_level": None
+                    }
+
+            # No location specified - prompt user
+            return {
+                "intent": intent,
+                "action": "delete_building",
+                "answer": "Select a building to delete or specify a location (e.g., 'delete the building at 123 Main St')",
+                "coordinates": None,
+                "target": None,
+                "candidates": [],
+                "should_fly_to": False,
+                "zoom_level": None
+            }
+
+        # === Q&A Mode ===
+        elif action == "question":
+            question_context = intent.get("question_context", {})
+            target_name = question_context.get("target_name")
+
+            building_data = None
+            coordinates = None
+
+            # Try to fetch relevant data if a target is mentioned
+            if target_name:
+                location = await geocoding_svc.geocode(target_name)
+                if location:
+                    coordinates = [location.lon, location.lat]
+                    # Fetch building data from Overpass
+                    bbox = expand_bbox_from_center(coordinates, 0.5)
+                    buildings = await fetch_buildings_in_bbox(bbox, include_towers=True)
+
+                    if buildings:
+                        # Find best matching building
+                        target_lower = target_name.lower()
+                        for building in buildings:
+                            props = building.get("properties", {})
+                            name = props.get("name", "").lower()
+                            if target_lower in name or name in target_lower:
+                                building_data = building
+                                break
+                        if not building_data:
+                            building_data = buildings[0]
+
+            # Generate answer using LLM
+            answer = await openai_svc.generate_qa_answer(
+                query=request.query,
+                building_data=building_data,
+                question_context=question_context
+            )
+
+            return {
+                "intent": intent,
+                "action": "question",
+                "answer": answer,
+                "coordinates": coordinates,
+                "target": building_data,
+                "candidates": [],
+                "should_fly_to": bool(coordinates),
+                "zoom_level": 16 if coordinates else None,
+                "qa_data": building_data.get("properties") if building_data else None
+            }
+
+        # === Navigate ===
+        elif action == "navigate":
             # Pure navigation - geocode and return coordinates
             location_query = intent.get("location_query")
             if not location_query:

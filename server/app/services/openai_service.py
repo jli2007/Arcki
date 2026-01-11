@@ -10,15 +10,22 @@ from ..schemas import PromptCleanResponse, ImageGenerateResponse
 class OpenAIService:
     """Service for OpenAI API interactions."""
 
-    SEARCH_INTENT_PROMPT = """You are an intelligent map search assistant. Parse user queries to understand their intent.
+    SEARCH_INTENT_PROMPT = """You are an intelligent map assistant for a 3D architecture visualization platform. Parse user queries to understand their intent.
 
 Analyze the query and extract:
 1. **action**: One of:
    - "navigate" - User wants to go to a specific named location OR a famous landmark/structure (e.g., "take me to Paris", "go to Empire State Building", "tallest building in Toronto")
    - "find_building" - User wants to find a building by characteristics in the current view (e.g., "tallest building here", "biggest footprint")
    - "search_area" - User wants to explore an area (e.g., "what buildings are here")
+   - "set_weather" - User wants to change weather effects (e.g., "make it rain", "add snow", "clear weather", "stop raining")
+   - "set_time" - User wants to change time of day (e.g., "switch to night", "make it daytime", "night mode")
+   - "camera_control" - User wants to adjust the camera view (e.g., "zoom in", "zoom out", "show from above", "tilt the view", "bird's eye view")
+   - "delete_building" - User wants to remove a building (e.g., "delete the building at 123 Main St", "remove the CN Tower")
+   - "question" - User is asking a question that needs an answer, not an action (e.g., "how tall is the CN Tower?", "what year was this built?", "what's the population of Toronto?")
 
-IMPORTANT: If the user asks for the "tallest building in [city]" or similar, and that city has a famous iconic tall structure (like CN Tower in Toronto, Burj Khalifa in Dubai, Empire State Building in NYC, Eiffel Tower in Paris, etc.), use "navigate" action with the landmark name as location_query.
+IMPORTANT:
+- If the user asks for the "tallest building in [city]" or similar, and that city has a famous iconic tall structure (like CN Tower in Toronto, Burj Khalifa in Dubai, Empire State Building in NYC, Eiffel Tower in Paris, etc.), use "navigate" action with the landmark name as location_query.
+- Handle typos and casual language gracefully (e.g., "mak it rain" -> set_weather, "nite mode" -> set_time)
 
 2. **location_query**: The location mentioned (city, landmark, address, neighborhood)
    - For famous landmarks, include the landmark name: "CN Tower, Toronto", "Burj Khalifa, Dubai"
@@ -32,23 +39,45 @@ IMPORTANT: If the user asks for the "tallest building in [city]" or similar, and
 
 4. **search_radius_km**: If proximity search mentioned ("within 2km", "nearby" = 1km)
 
+5. **weather_settings**: For set_weather action:
+   - type: "rain", "snow", or "clear"
+
+6. **time_settings**: For set_time action:
+   - preset: "day" or "night"
+
+7. **camera_settings**: For camera_control action:
+   - zoom_delta: positive number to zoom in, negative to zoom out (e.g., +2, -2)
+   - pitch: 0 for top-down view, 60 for angled view, or "increase"/"decrease" for relative change
+   - bearing_delta: rotation in degrees (positive = clockwise)
+
+8. **question_context**: For question action:
+   - subject: what the question is about ("building_height", "building_info", "general_knowledge", etc.)
+   - target_name: specific building/landmark name if mentioned
+
 Respond in JSON format:
 {
-    "action": "navigate|find_building|search_area",
+    "action": "navigate|find_building|search_area|set_weather|set_time|camera_control|delete_building|question",
     "location_query": "string or null",
-    "building_attributes": {"sort_by": "height|area|underdeveloped|null", "building_type": "any", "limit": 5},
+    "building_attributes": {"sort_by": "height|area|underdeveloped|null", "building_type": "any", "limit": 5} or null,
     "search_radius_km": number or null,
+    "weather_settings": {"type": "rain|snow|clear"} or null,
+    "time_settings": {"preset": "day|night"} or null,
+    "camera_settings": {"zoom_delta": number, "pitch": number or string, "bearing_delta": number} or null,
+    "question_context": {"subject": string, "target_name": string} or null,
     "reasoning": "Brief explanation of your interpretation"
 }
 
 Examples:
-- "take me to the Eiffel Tower" -> {"action": "navigate", "location_query": "Eiffel Tower, Paris", "building_attributes": null, "search_radius_km": null, "reasoning": "Direct navigation to landmark"}
-- "find the tallest building" -> {"action": "find_building", "location_query": null, "building_attributes": {"sort_by": "height", "building_type": "any", "limit": 5}, "search_radius_km": null, "reasoning": "Find tallest in current view"}
-- "tallest building in Toronto" -> {"action": "navigate", "location_query": "CN Tower, Toronto", "building_attributes": null, "search_radius_km": null, "reasoning": "CN Tower is the tallest structure in Toronto"}
-- "tallest building in Dubai" -> {"action": "navigate", "location_query": "Burj Khalifa, Dubai", "building_attributes": null, "search_radius_km": null, "reasoning": "Burj Khalifa is the tallest building in Dubai"}
-- "tallest building near Central Park" -> {"action": "find_building", "location_query": "Central Park, New York", "building_attributes": {"sort_by": "height", "building_type": "any", "limit": 5}, "search_radius_km": 1, "reasoning": "Find tallest building near Central Park"}
-- "take me to underdeveloped building" -> {"action": "find_building", "location_query": null, "building_attributes": {"sort_by": "underdeveloped", "building_type": "any", "limit": 5}, "search_radius_km": null, "reasoning": "Find underdeveloped buildings in current view"}
-- "go to san francisco" -> {"action": "navigate", "location_query": "San Francisco", "building_attributes": null, "search_radius_km": null, "reasoning": "Navigate to city"}"""
+- "take me to the Eiffel Tower" -> {"action": "navigate", "location_query": "Eiffel Tower, Paris", ...}
+- "find the tallest building" -> {"action": "find_building", "location_query": null, "building_attributes": {"sort_by": "height", ...}, ...}
+- "make it rain" -> {"action": "set_weather", "weather_settings": {"type": "rain"}, "reasoning": "User wants rain effect"}
+- "switch to night" -> {"action": "set_time", "time_settings": {"preset": "night"}, "reasoning": "User wants night mode"}
+- "zoom in" -> {"action": "camera_control", "camera_settings": {"zoom_delta": 2}, "reasoning": "User wants to zoom in"}
+- "show from above" -> {"action": "camera_control", "camera_settings": {"pitch": 0}, "reasoning": "User wants bird's eye view"}
+- "delete the CN Tower" -> {"action": "delete_building", "location_query": "CN Tower, Toronto", "reasoning": "User wants to remove CN Tower"}
+- "how tall is the CN Tower?" -> {"action": "question", "question_context": {"subject": "building_height", "target_name": "CN Tower"}, "reasoning": "User asking about height"}
+- "mak it rainy plz" -> {"action": "set_weather", "weather_settings": {"type": "rain"}, "reasoning": "Typo-corrected: wants rain"}
+- "nite mode" -> {"action": "set_time", "time_settings": {"preset": "night"}, "reasoning": "Typo-corrected: wants night"}"""
 
     ANSWER_GENERATION_PROMPT = """You are a helpful map assistant. Generate a brief, informative response about the search result.
 
@@ -58,6 +87,13 @@ Be concise (1-2 sentences max). Include key facts when available:
 - Location context
 
 If no results were found, provide a helpful message."""
+
+    QA_ANSWER_PROMPT = """You are a helpful assistant for a 3D architecture visualization platform.
+Answer the user's question directly and concisely (1-2 sentences max).
+
+If map data is available, use it. Otherwise, use your general knowledge.
+Do not add meta-commentary like "based on my knowledge" or "from general knowledge".
+Just answer the question directly."""
 
     STYLE_CONTEXTS = {
         "architectural": "Focus on realistic architectural visualization with clean lines",
@@ -226,6 +262,104 @@ Respond in JSON format:
         """Fallback rule-based intent parsing when OpenAI is unavailable."""
         query_lower = query.lower()
 
+        # Check for weather control
+        if any(word in query_lower for word in ["rain", "rainy", "raining"]):
+            return {
+                "action": "set_weather",
+                "weather_settings": {"type": "rain"},
+                "reasoning": "Fallback: rain keyword detected"
+            }
+        if any(word in query_lower for word in ["snow", "snowy", "snowing"]):
+            return {
+                "action": "set_weather",
+                "weather_settings": {"type": "snow"},
+                "reasoning": "Fallback: snow keyword detected"
+            }
+        if any(phrase in query_lower for phrase in ["clear weather", "stop rain", "sunny", "clear sky"]):
+            return {
+                "action": "set_weather",
+                "weather_settings": {"type": "clear"},
+                "reasoning": "Fallback: clear weather keyword detected"
+            }
+
+        # Check for time control
+        if any(word in query_lower for word in ["night", "dark", "evening", "nite"]):
+            return {
+                "action": "set_time",
+                "time_settings": {"preset": "night"},
+                "reasoning": "Fallback: night keyword detected"
+            }
+        if any(word in query_lower for word in ["day", "daytime", "morning", "bright"]) and "what" not in query_lower:
+            return {
+                "action": "set_time",
+                "time_settings": {"preset": "day"},
+                "reasoning": "Fallback: day keyword detected"
+            }
+
+        # Check for camera control
+        if "zoom in" in query_lower:
+            return {
+                "action": "camera_control",
+                "camera_settings": {"zoom_delta": 2},
+                "reasoning": "Fallback: zoom in detected"
+            }
+        if "zoom out" in query_lower:
+            return {
+                "action": "camera_control",
+                "camera_settings": {"zoom_delta": -2},
+                "reasoning": "Fallback: zoom out detected"
+            }
+        if any(phrase in query_lower for phrase in ["from above", "top down", "bird's eye", "aerial", "overhead"]):
+            return {
+                "action": "camera_control",
+                "camera_settings": {"pitch": 0},
+                "reasoning": "Fallback: top-down view detected"
+            }
+        if "tilt" in query_lower:
+            return {
+                "action": "camera_control",
+                "camera_settings": {"pitch": 60},
+                "reasoning": "Fallback: tilt detected"
+            }
+
+        # Check for delete action
+        if any(word in query_lower for word in ["delete", "remove", "erase"]):
+            # Try to extract location
+            location = None
+            for phrase in ["delete", "remove", "erase"]:
+                if phrase in query_lower:
+                    parts = query_lower.split(phrase, 1)
+                    if len(parts) > 1:
+                        location = parts[1].strip()
+                        # Clean up common words
+                        for prefix in ["the", "this", "that", "building at", "building"]:
+                            if location.startswith(prefix):
+                                location = location[len(prefix):].strip()
+                        if location:
+                            break
+            return {
+                "action": "delete_building",
+                "location_query": location if location else None,
+                "reasoning": "Fallback: delete keyword detected"
+            }
+
+        # Check for question (starts with question words)
+        if any(query_lower.startswith(q) for q in ["how", "what", "when", "who", "why", "is ", "are ", "does ", "do ", "can "]):
+            # Try to extract target name
+            target_name = None
+            for landmark in ["cn tower", "eiffel tower", "empire state", "burj khalifa", "big ben"]:
+                if landmark in query_lower:
+                    target_name = landmark.title()
+                    break
+            return {
+                "action": "question",
+                "question_context": {
+                    "subject": "general",
+                    "target_name": target_name
+                },
+                "reasoning": "Fallback: question format detected"
+            }
+
         # Check for navigation intent
         if any(phrase in query_lower for phrase in ["take me to", "go to", "navigate to", "fly to"]):
             # Extract location after the phrase
@@ -342,3 +476,77 @@ Intent: {json.dumps(intent) if intent else 'unknown'}"""
             return f"The most underdeveloped building (large footprint, low height) is {name}."
         else:
             return f"Found {name} matching your query."
+
+    async def generate_qa_answer(
+        self,
+        query: str,
+        building_data: Optional[dict],
+        question_context: Optional[dict]
+    ) -> str:
+        """
+        Generate an answer for Q&A queries.
+
+        Args:
+            query: Original user question
+            building_data: Building data from Overpass API (if available)
+            question_context: Parsed question context (subject, target_name)
+
+        Returns:
+            Natural language answer string
+        """
+        if not self._client:
+            return self._fallback_qa_answer(query, building_data, question_context)
+
+        try:
+            props = building_data.get("properties", {}) if building_data else {}
+            context = f"""Question: {query}
+Building data: {json.dumps(props, indent=2) if props else "No building data available"}
+Question context: {json.dumps(question_context) if question_context else "None"}"""
+
+            response = await self._client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {"role": "system", "content": self.QA_ANSWER_PROMPT},
+                    {"role": "user", "content": context}
+                ],
+                temperature=0.7,
+                max_tokens=200
+            )
+
+            return response.choices[0].message.content
+        except Exception as e:
+            print(f"OpenAI Q&A answer generation error: {e}")
+            return self._fallback_qa_answer(query, building_data, question_context)
+
+    def _fallback_qa_answer(
+        self,
+        query: str,
+        building_data: Optional[dict],
+        question_context: Optional[dict]
+    ) -> str:
+        """Fallback Q&A answer when OpenAI is unavailable."""
+        if not building_data:
+            return "I don't have enough information to answer that question."
+
+        props = building_data.get("properties", {})
+        name = props.get("name", "this building")
+        subject = question_context.get("subject", "") if question_context else ""
+
+        if subject == "building_height" or "tall" in query.lower() or "height" in query.lower():
+            height = props.get("height")
+            levels = props.get("building:levels")
+            if height:
+                return f"{name} is {height} meters tall."
+            elif levels:
+                return f"{name} has {levels} floors."
+            else:
+                return f"I don't have height information for {name}."
+
+        if "built" in query.lower() or "year" in query.lower() or "old" in query.lower():
+            start_date = props.get("start_date")
+            if start_date:
+                return f"{name} was built in {start_date}."
+            else:
+                return f"I don't have construction date information for {name}."
+
+        return f"I found {name}, but I don't have specific information to answer your question."

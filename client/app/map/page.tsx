@@ -122,12 +122,19 @@ export default function MapPage() {
       };
       reasoning?: string;
     };
+    action?: string; // Primary action type from backend
     answer: string;
     coordinates?: [number, number] | null;
     target?: GeoJSON.Feature | null;
     candidates: GeoJSON.Feature[];
     should_fly_to: boolean;
     zoom_level?: number | null;
+    // New agentic action payloads
+    weather_settings?: { type: "rain" | "snow" | "clear" };
+    time_settings?: { preset: "day" | "night" };
+    camera_settings?: { zoom_delta?: number; pitch?: number; bearing_delta?: number };
+    delete_target?: GeoJSON.Feature;
+    qa_data?: Record<string, unknown>;
   } | null>(null);
 
   // Model transform history for undo/redo
@@ -143,6 +150,25 @@ export default function MapPage() {
   const insertedModelsRef = useRef(insertedModels);
   const isPlacingModelRef = useRef(isPlacingModel);
   const selectedModelIdRef = useRef(selectedModelId);
+  const insertCooldownRef = useRef(false);
+
+  // Wrapper for setActiveTool that prevents rapid Insert modal toggling
+  const handleSetActiveTool = (tool: "select" | "draw" | "insert" | null) => {
+    // Prevent opening Insert modal during cooldown period
+    if (tool === "insert" && insertCooldownRef.current) {
+      return;
+    }
+
+    // Start cooldown when closing Insert modal
+    if (activeTool === "insert" && tool !== "insert") {
+      insertCooldownRef.current = true;
+      setTimeout(() => {
+        insertCooldownRef.current = false;
+      }, 200);
+    }
+
+    setActiveTool(tool);
+  };
 
   useEffect(() => {
     deletedFeaturesRef.current = deletedFeatures;
@@ -328,6 +354,119 @@ export default function MapPage() {
     }
   }, []);
 
+  // Dispatch agentic actions based on search result
+  const dispatchAgentAction = useCallback((result: typeof searchResult) => {
+    if (!result || !map.current) return;
+
+    const action = result.action || result.intent?.action;
+
+    switch (action) {
+      case "set_weather":
+        if (result.weather_settings?.type) {
+          const weatherType = result.weather_settings.type as "clear" | "rain" | "snow";
+          setWeather(weatherType);
+
+          // Apply directly to map (don't rely on useEffect timing)
+          const mapInstance = map.current as any;
+          if (weatherType === "rain") {
+            mapInstance.setSnow?.(null);
+            mapInstance.setRain?.({
+              intensity: 0.5,
+              color: "rgba(180, 220, 255, 0.5)",
+              opacity: 0.8,
+              density: 1.0,
+              direction: [0, 80],
+              centerThinning: 0.5,
+            });
+          } else if (weatherType === "snow") {
+            mapInstance.setRain?.(null);
+            mapInstance.setSnow?.({
+              intensity: 0.6,
+              color: "rgba(255, 255, 255, 0.9)",
+              opacity: 0.9,
+              density: 0.9,
+              direction: [0, 50],
+              centerThinning: 0.3,
+              vignetteColor: "rgba(200, 220, 255, 0.3)",
+            });
+          } else {
+            mapInstance.setRain?.(null);
+            mapInstance.setSnow?.(null);
+          }
+        }
+        break;
+
+      case "set_time":
+        if (result.time_settings?.preset) {
+          const preset = result.time_settings.preset as "day" | "night";
+          setLightMode(preset);
+
+          // Apply directly to map (don't rely on useEffect timing)
+          map.current.setConfigProperty("basemap", "lightPreset", preset);
+        }
+        break;
+
+      case "camera_control":
+        if (result.camera_settings) {
+          const { zoom_delta, pitch, bearing_delta } = result.camera_settings;
+          const currentZoom = map.current.getZoom();
+          const currentPitch = map.current.getPitch();
+          const currentBearing = map.current.getBearing();
+
+          map.current.easeTo({
+            zoom: zoom_delta ? currentZoom + zoom_delta : currentZoom,
+            pitch: typeof pitch === "number" ? pitch : currentPitch,
+            bearing: bearing_delta ? currentBearing + bearing_delta : currentBearing,
+            duration: 1000,
+          });
+        }
+        break;
+
+      case "delete_building":
+        if (result.delete_target) {
+          const geometry = result.delete_target.geometry;
+          if (geometry && geometry.type === "Polygon") {
+            // Add to deleted features
+            setDeletedFeatures((prev) => [...prev, result.delete_target as GeoJSON.Feature<GeoJSON.Polygon>]);
+          }
+        }
+        // Fly to location if provided
+        if (result.should_fly_to && result.coordinates) {
+          map.current.flyTo({
+            center: result.coordinates as [number, number],
+            zoom: result.zoom_level || 18,
+            pitch: 60,
+            duration: 1500,
+          });
+        }
+        break;
+
+      case "question":
+        // Q&A just displays answer, optionally fly to location
+        if (result.should_fly_to && result.coordinates) {
+          map.current.flyTo({
+            center: result.coordinates as [number, number],
+            zoom: result.zoom_level || 16,
+            pitch: 45,
+            duration: 2000,
+          });
+        }
+        break;
+
+      default:
+        // Existing navigation/building search behavior
+        if (result.should_fly_to && result.coordinates) {
+          map.current.flyTo({
+            center: result.coordinates as [number, number],
+            zoom: result.zoom_level || 15,
+            pitch: 60,
+            bearing: -17.6,
+            duration: 2000,
+          });
+        }
+    }
+  }, [setWeather, setLightMode, setDeletedFeatures]);
+
   // Handle search
   const handleSearch = useCallback(async () => {
     if (!map.current || !searchQuery.trim()) return;
@@ -369,19 +508,12 @@ export default function MapPage() {
 
       const data = await response.json();
       setSearchResult(data);
+      setSearchQuery(""); // Clear input for next query
 
-      // Handle navigation based on response
-      if (data.should_fly_to && data.coordinates && map.current) {
-        map.current.flyTo({
-          center: data.coordinates as [number, number],
-          zoom: data.zoom_level || 15,
-          pitch: 60,
-          bearing: -17.6,
-          duration: 2000,
-        });
-      }
+      // Dispatch agent action based on result
+      dispatchAgentAction(data);
 
-      // Highlight target building if present
+      // Highlight target building if present (for building searches)
       if (data.target && map.current) {
         const source = map.current.getSource("search-target") as mapboxgl.GeoJSONSource;
         if (source) {
@@ -416,7 +548,7 @@ export default function MapPage() {
     } finally {
       setIsSearching(false);
     }
-  }, [searchQuery]);
+  }, [searchQuery, dispatchAgentAction]);
 
   // Clear selection when tool changes
   useEffect(() => {
@@ -1120,7 +1252,7 @@ export default function MapPage() {
     <div className="relative h-screen w-full">
       <Toolbar
         activeTool={activeTool}
-        setActiveTool={setActiveTool}
+        setActiveTool={handleSetActiveTool}
         showPromptGenerator={showPromptGenerator}
         onTogglePromptGenerator={() => setShowPromptGenerator(!showPromptGenerator)}
       />
@@ -1132,7 +1264,7 @@ export default function MapPage() {
       />
       {activeTool === "insert" && (
         <InsertModelModal
-          onClose={() => setActiveTool(null)}
+          onClose={() => handleSetActiveTool(null)}
           onPlaceModel={handlePlaceModel}
         />
       )}
