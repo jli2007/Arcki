@@ -60,29 +60,34 @@ Be concise (1-2 sentences max). Include key facts when available:
 If no results were found, provide a helpful message."""
 
     STYLE_CONTEXTS = {
-        "architectural": "Black and white line drawing, clean lines only",
-        "modern": "Black and white line drawing, minimalist clean lines",
-        "classical": "Black and white line drawing, detailed clean lines",
-        "futuristic": "Black and white line drawing, sleek clean lines",
+        "architectural": "2D flat line art blueprint with bold colored outlines, no 3D, no fill",
+        "modern": "2D flat line art with bold colored outlines, minimalist modern, no 3D, no fill",
+        "classical": "2D flat line art with bold colored outlines, classical details, no 3D, no fill",
+        "futuristic": "2D flat line art with bold colored outlines, sleek futuristic, no 3D, no fill",
     }
 
-    SYSTEM_PROMPT = """You create simple line drawing prompts for DALL-E.
+    SYSTEM_PROMPT = """You create 2D FLAT LINE ART prompts for DALL-E. NEVER 3D renders.
 
-RULES:
-- BLACK AND WHITE LINE DRAWING ONLY
-- Just black lines on pure white background
-- NO shading, NO gradients, NO gray, NO colors
-- Clean simple lines showing the building shape
+CRITICAL RULES - MUST FOLLOW:
+- 2D FLAT LINE ART ONLY - like a blueprint or technical drawing
+- ABSOLUTELY NO 3D RENDERING - flat 2D illustration only
+- ABSOLUTELY NO FILLED COLORS - only outline strokes
+- ABSOLUTELY NO REALISTIC MATERIALS OR TEXTURES
+- Just bold colored LINE STROKES on pure white background
+- Like an architect's line drawing but with colorful lines instead of black
+- Think: vector illustration, blueprint style, technical drawing
+- Lines should be clean, bold, and in vibrant colors (purple, blue, pink, teal)
+- Pure white background - nothing else
 - NO TEXT or words in the image
-- Like an architectural line sketch
+- 2D ONLY - NOT 3D
 
-Example: "Black and white line drawing of a [building], clean black lines only, pure white background, no shading, no text, simple sketch"
+Example: "2D flat line art blueprint of a [building], only colored outline strokes, no fill, no 3D, no realistic rendering, purple and blue line strokes on white background, technical drawing style, vector illustration"
 
 Respond in JSON:
 {
     "cleaned_prompt": "Simple description",
-    "dalle_prompt": "Black and white line drawing, no shading, no text",
-    "style_tags": ["line drawing", "black and white", "sketch"]
+    "dalle_prompt": "2D flat line art, blueprint style, only colored outline strokes, no fill, no 3D rendering, no realistic textures, colored lines on white background, technical drawing",
+    "style_tags": ["2D line art", "blueprint", "colored outlines", "flat illustration", "no 3D"]
 }"""
 
     SYSTEM_PROMPT_3D_PREVIEW = """You are an expert at creating prompts for 3D architectural visualization renders.
@@ -163,7 +168,7 @@ Respond in JSON format:
         num_images: int = 1,
         size: str = "1024x1024",
         quality: str = "hd",
-        style: str = "natural",
+        style: str = "natural",  # Natural works better for clean line art
         include_3d_preview: bool = True
     ) -> ImageGenerateResponse:
         """
@@ -183,16 +188,16 @@ Respond in JSON format:
         if not self._client:
             raise RuntimeError("OpenAI not configured. Set OPENAI_API_KEY.")
 
-        # Black and white line drawing - clean lines only, no shading
-        line_prefix = "Black and white line drawing, clean black lines only, pure white background, no shading, no gradients, no gray, no text, simple sketch, "
+        # 2D flat line art - blueprint style with colored outlines only, NO 3D rendering
+        line_prefix = "2D flat line art, blueprint technical drawing style, ONLY colored outline strokes, NO fill colors, NO 3D rendering, NO realistic textures, bold purple blue and teal colored lines on pure white background, vector illustration style, "
         line_prompt = f"{line_prefix}{prompt}"
         
-        # Specific views: front, side, top, isometric
+        # Specific views: front, side, top, isometric - all 2D flat
         view_prompts = [
-            f"{line_prompt}, front view",
-            f"{line_prefix}{prompt}, side view",
-            f"{line_prefix}{prompt}, top down view",
-            f"{line_prefix}{prompt}, isometric view"
+            f"{line_prompt}, front elevation 2D blueprint",
+            f"{line_prefix}{prompt}, side elevation 2D blueprint",
+            f"{line_prefix}{prompt}, top down 2D floor plan style",
+            f"{line_prefix}{prompt}, isometric 2D technical drawing"
         ][:num_images]
 
         # Generate all images in parallel instead of sequentially
