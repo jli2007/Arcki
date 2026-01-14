@@ -47,13 +47,13 @@ def calculate_building_features(feature: dict) -> dict:
             # If original was in feet, convert (rough check)
             if "ft" in str(props["height"]).lower():
                 height_est *= 0.3048  # feet to meters
-        except:
+        except (ValueError, AttributeError):
             pass
     elif "building:levels" in props:
         try:
             levels = float(str(props["building:levels"]))
             height_est = levels * 3.0  # 3m per level
-        except:
+        except (ValueError, AttributeError):
             pass
 
     return {
@@ -189,7 +189,6 @@ async def fetch_buildings_in_bbox(bbox: dict, include_towers: bool = False) -> l
     ]
 
     data = None
-    last_error = None
 
     for endpoint in endpoints:
         try:
@@ -202,8 +201,7 @@ async def fetch_buildings_in_bbox(bbox: dict, include_towers: bool = False) -> l
                     response.raise_for_status()
                     data = await response.json()
                     break  # Success, exit loop
-        except (aiohttp.ClientError, asyncio.TimeoutError) as e:
-            last_error = e
+        except (aiohttp.ClientError, asyncio.TimeoutError):
             continue  # Try next endpoint
 
     if data is None:
@@ -247,12 +245,17 @@ async def fetch_buildings_in_bbox(bbox: dict, include_towers: bool = False) -> l
             # Determine polygon size based on structure type and height
             # Famous towers need larger polygons to match their 3D model footprint
             height = tags.get("height", "")
-            is_tower = tags.get("man_made") == "tower" or tags.get("tourism") == "attraction"
+            is_tower = (
+                tags.get("man_made") == "tower"
+                or tags.get("tourism") == "attraction"
+            )
 
             if is_tower:
                 # Towers typically have larger 3D models - use ~80m radius
                 offset = 0.0008
-            elif height and float(height.replace("m", "").replace(" ", "") or 0) > 100:
+            elif height and float(
+                height.replace("m", "").replace(" ", "") or 0
+            ) > 100:
                 # Tall structures (>100m) need larger polygons
                 offset = 0.0006
             else:
@@ -338,7 +341,8 @@ async def agentic_search(request: SearchRequest):
 
     Supports:
     - Navigation: "take me to Paris", "go to Empire State Building"
-    - Building search: "tallest building", "biggest footprint near Central Park"
+    - Building search: "tallest building",
+      "biggest footprint near Central Park"
     - Area exploration: "what buildings are here"
     """
     try:
@@ -603,14 +607,23 @@ async def agentic_search(request: SearchRequest):
                 # Also try the original location
                 location = await geocoding_svc.geocode(location_query)
 
-                # If we found a landmark with high specificity, it might be THE tallest
+                # If we found a landmark with high specificity,
+                # it might be THE tallest
                 if landmark and landmark.location_type in ["poi", "place"]:
                     # Check if this is a famous tall structure
                     landmark_lower = landmark.display_name.lower()
-                    tall_keywords = ["tower", "skyscraper", "building", "centre", "center"]
+                    tall_keywords = [
+                        "tower",
+                        "skyscraper",
+                        "building",
+                        "centre",
+                        "center",
+                    ]
                     if any(kw in landmark_lower for kw in tall_keywords):
-                        # This looks like a landmark - navigate directly to it
-                        zoom_level = calculate_zoom_for_location_type(landmark.location_type)
+                        # This looks like a landmark - navigate directly
+                        zoom_level = calculate_zoom_for_location_type(
+                            landmark.location_type
+                        )
                         return {
                             "intent": intent,
                             "answer": f"Flying to {landmark.display_name}",
@@ -625,7 +638,8 @@ async def agentic_search(request: SearchRequest):
                 if location:
                     search_center = [location.lon, location.lat]
                     location_name = location.display_name
-                    radius = intent.get("search_radius_km") or 2.0  # Larger radius for city searches
+                    # Larger radius for city searches
+                    radius = intent.get("search_radius_km") or 2.0
                     bbox = expand_bbox_from_center(search_center, radius)
             elif location_query:
                 # Geocode the location

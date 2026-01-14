@@ -1,6 +1,5 @@
 from fastapi import APIRouter
 
-from ..config import get_settings
 from ..services import OpenAIService, FalService
 
 router = APIRouter(tags=["Health"])
@@ -8,8 +7,6 @@ router = APIRouter(tags=["Health"])
 
 @router.get("/")
 async def root():
-    """Server info."""
-    settings = get_settings()
     openai_svc = OpenAIService()
     fal_svc = FalService()
 
@@ -27,7 +24,6 @@ async def root():
 
 @router.get("/health")
 async def health_check():
-    """Health check endpoint."""
     openai_svc = OpenAIService()
     fal_svc = FalService()
 

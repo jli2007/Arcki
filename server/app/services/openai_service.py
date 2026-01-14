@@ -1,6 +1,6 @@
 import json
 import asyncio
-from typing import Optional
+from typing import Optional, Literal, cast
 import openai
 
 from ..config import get_settings
@@ -18,7 +18,10 @@ Analyze the query and extract:
    - "find_building" - User wants to find a building by characteristics in the current view (e.g., "tallest building here", "biggest footprint")
    - "search_area" - User wants to explore an area (e.g., "what buildings are here")
 
-IMPORTANT: If the user asks for the "tallest building in [city]" or similar, and that city has a famous iconic tall structure (like CN Tower in Toronto, Burj Khalifa in Dubai, Empire State Building in NYC, Eiffel Tower in Paris, etc.), use "navigate" action with the landmark name as location_query.
+IMPORTANT: If the user asks for the "tallest building in [city]" or similar,
+and that city has a famous iconic tall structure (like CN Tower in Toronto,
+Burj Khalifa in Dubai, Empire State Building in NYC, Eiffel Tower in Paris, etc.),
+use "navigate" action with the landmark name as location_query.
 
 2. **location_query**: The location mentioned (city, landmark, address, neighborhood)
    - For famous landmarks, include the landmark name: "CN Tower, Toronto", "Burj Khalifa, Dubai"
@@ -44,10 +47,20 @@ Respond in JSON format:
 Examples:
 - "take me to the Eiffel Tower" -> {"action": "navigate", "location_query": "Eiffel Tower, Paris", "building_attributes": null, "search_radius_km": null, "reasoning": "Direct navigation to landmark"}
 - "find the tallest building" -> {"action": "find_building", "location_query": null, "building_attributes": {"sort_by": "height", "building_type": "any", "limit": 5}, "search_radius_km": null, "reasoning": "Find tallest in current view"}
-- "tallest building in Toronto" -> {"action": "navigate", "location_query": "CN Tower, Toronto", "building_attributes": null, "search_radius_km": null, "reasoning": "CN Tower is the tallest structure in Toronto"}
-- "tallest building in Dubai" -> {"action": "navigate", "location_query": "Burj Khalifa, Dubai", "building_attributes": null, "search_radius_km": null, "reasoning": "Burj Khalifa is the tallest building in Dubai"}
-- "tallest building near Central Park" -> {"action": "find_building", "location_query": "Central Park, New York", "building_attributes": {"sort_by": "height", "building_type": "any", "limit": 5}, "search_radius_km": 1, "reasoning": "Find tallest building near Central Park"}
-- "take me to underdeveloped building" -> {"action": "find_building", "location_query": null, "building_attributes": {"sort_by": "underdeveloped", "building_type": "any", "limit": 5}, "search_radius_km": null, "reasoning": "Find underdeveloped buildings in current view"}
+- "tallest building in Toronto" -> {"action": "navigate", "location_query": "CN Tower, Toronto",
+  "building_attributes": null, "search_radius_km": null,
+  "reasoning": "CN Tower is the tallest structure in Toronto"}
+- "tallest building in Dubai" -> {"action": "navigate", "location_query": "Burj Khalifa, Dubai",
+  "building_attributes": null, "search_radius_km": null,
+  "reasoning": "Burj Khalifa is the tallest building in Dubai"}
+- "tallest building near Central Park" -> {"action": "find_building",
+  "location_query": "Central Park, New York",
+  "building_attributes": {"sort_by": "height", "building_type": "any", "limit": 5},
+  "search_radius_km": 1, "reasoning": "Find tallest building near Central Park"}
+- "take me to underdeveloped building" -> {"action": "find_building",
+  "location_query": null,
+  "building_attributes": {"sort_by": "underdeveloped", "building_type": "any", "limit": 5},
+  "search_radius_km": null, "reasoning": "Find underdeveloped buildings in current view"}
 - "go to san francisco" -> {"action": "navigate", "location_query": "San Francisco", "building_attributes": null, "search_radius_km": null, "reasoning": "Navigate to city"}"""
 
     ANSWER_GENERATION_PROMPT = """You are a helpful map assistant. Generate a brief, informative response about the search result.
@@ -81,12 +94,17 @@ CRITICAL RULES - MUST FOLLOW:
 - NO TEXT or words in the image
 - 2D ONLY - NOT 3D
 
-Example: "2D flat line art blueprint of a [building], only colored outline strokes, no fill, no 3D, no realistic rendering, purple and blue line strokes on white background, technical drawing style, vector illustration"
+Example: "2D flat line art blueprint of a [building],
+only colored outline strokes, no fill, no 3D, no realistic rendering,
+purple and blue line strokes on white background, technical drawing style,
+vector illustration"
 
 Respond in JSON:
 {
     "cleaned_prompt": "Simple description",
-    "dalle_prompt": "2D flat line art, blueprint style, only colored outline strokes, no fill, no 3D rendering, no realistic textures, colored lines on white background, technical drawing",
+    "dalle_prompt": "2D flat line art, blueprint style, only colored outline strokes, "
+                    "no fill, no 3D rendering, no realistic textures, "
+                    "colored lines on white background, technical drawing",
     "style_tags": ["2D line art", "blueprint", "colored outlines", "flat illustration", "no 3D"]
 }"""
 
@@ -103,7 +121,9 @@ CRITICAL RULES for the 3D preview prompt:
 - Make it look PHOTOREALISTIC and PROFESSIONAL
 - This is for USER PREVIEW ONLY - to help them visualize the final 3D model
 
-Example format: "Professional 3D architectural render of a [building], dramatic 3/4 perspective view, photorealistic materials, soft golden hour lighting, subtle shadows, minimal environment, architectural visualization quality"
+Example format: "Professional 3D architectural render of a [building],
+dramatic 3/4 perspective view, photorealistic materials, soft golden hour lighting,
+subtle shadows, minimal environment, architectural visualization quality"
 
 Respond in JSON format:
 {
@@ -153,7 +173,10 @@ Respond in JSON format:
             max_tokens=500
         )
 
-        result = json.loads(response.choices[0].message.content)
+        content = response.choices[0].message.content
+        if content is None:
+            raise RuntimeError("No content in OpenAI response")
+        result = json.loads(content)
 
         return PromptCleanResponse(
             original_prompt=prompt,
@@ -189,9 +212,14 @@ Respond in JSON format:
             raise RuntimeError("OpenAI not configured. Set OPENAI_API_KEY.")
 
         # 2D flat line art - blueprint style with colored outlines only, NO 3D rendering
-        line_prefix = "2D flat line art, blueprint technical drawing style, ONLY colored outline strokes, NO fill colors, NO 3D rendering, NO realistic textures, bold purple blue and teal colored lines on pure white background, vector illustration style, "
+        line_prefix = (
+            "2D flat line art, blueprint technical drawing style, "
+            "ONLY colored outline strokes, NO fill colors, NO 3D rendering, "
+            "NO realistic textures, bold purple blue and teal colored lines "
+            "on pure white background, vector illustration style, "
+        )
         line_prompt = f"{line_prefix}{prompt}"
-        
+
         # Specific views: front, side, top, isometric - all 2D flat
         view_prompts = [
             f"{line_prompt}, front elevation 2D blueprint",
@@ -202,26 +230,40 @@ Respond in JSON format:
 
         # Generate all images in parallel instead of sequentially
         async def generate_single_image(view_prompt: str):
+            # Cast size and quality to satisfy OpenAI API type requirements
+            size_param = cast(
+                Literal["1024x1024", "1792x1024", "1024x1792"],
+                size
+            )
+            quality_param = cast(Literal["standard", "hd"], quality)
+            style_param = cast(Literal["natural", "vivid"], style)
+
+            if not self._client:
+                raise RuntimeError("OpenAI client not configured")
             response = await self._client.images.generate(
                 model="dall-e-3",
                 prompt=view_prompt,
-                size=size,
-                quality=quality,
-                style=style,
+                size=size_param,
+                quality=quality_param,
+                style=style_param,
                 n=1
             )
             return response.data[0].url
 
         # Run all image generations concurrently
-        images = await asyncio.gather(*[generate_single_image(p) for p in view_prompts])
+        image_results = await asyncio.gather(
+            *[generate_single_image(p) for p in view_prompts]
+        )
+        # Type assertion: we know all URLs are strings
+        images: list[str] = cast(list[str], list(image_results))
 
         # Generate 3D preview image (separate from the flat elevation images)
-        preview_3d_url = None
+        preview_3d_url: Optional[str] = None
         if include_3d_preview:
             preview_3d_url = await self._generate_3d_preview(prompt, size, quality)
 
         return ImageGenerateResponse(
-            images=list(images),
+            images=images,
             prompt_used=prompt,
             preview_3d_url=preview_3d_url
         )
@@ -231,7 +273,7 @@ Respond in JSON format:
         prompt: str,
         size: str = "1024x1024",
         quality: str = "hd"
-    ) -> str:
+    ) -> Optional[str]:
         """
         Generate a 3D perspective preview render for user visualization.
         This is NOT used for Trellis 3D generation - just for user preview.
@@ -260,15 +302,27 @@ Respond in JSON format:
                 max_tokens=300
             )
 
-            result = json.loads(gpt_response.choices[0].message.content)
-            preview_prompt = result.get("preview_prompt", f"Professional 3D architectural render of {prompt}, dramatic perspective view, photorealistic")
+            content = gpt_response.choices[0].message.content
+            if content is None:
+                raise RuntimeError("No content in OpenAI response")
+            result = json.loads(content)
+            default_preview = (
+                f"Professional 3D architectural render of {prompt}, "
+                "dramatic perspective view, photorealistic"
+            )
+            preview_prompt = result.get("preview_prompt", default_preview)
 
             # Generate the 3D preview image
+            size_param = cast(
+                Literal["1024x1024", "1792x1024", "1024x1792"],
+                size
+            )
+            quality_param = cast(Literal["standard", "hd"], quality)
             response = await self._client.images.generate(
                 model="dall-e-3",
                 prompt=preview_prompt,
-                size=size,
-                quality=quality,
+                size=size_param,
+                quality=quality_param,
                 style="vivid",  # Use vivid for more dramatic 3D renders
                 n=1
             )
@@ -303,7 +357,10 @@ Respond in JSON format:
                 max_tokens=300
             )
 
-            return json.loads(response.choices[0].message.content)
+            content = response.choices[0].message.content
+            if content is None:
+                raise RuntimeError("No content in OpenAI response")
+            return json.loads(content)
         except Exception as e:
             print(f"OpenAI intent parsing error: {e}")
             return self._fallback_intent_parse(query)
@@ -398,14 +455,15 @@ Intent: {json.dumps(intent) if intent else 'unknown'}"""
                 max_tokens=100
             )
 
-            return response.choices[0].message.content
+            content = response.choices[0].message.content
+            return content if content is not None else ""
         except Exception as e:
             print(f"OpenAI answer generation error: {e}")
             return self._fallback_answer_generation(query, top_result, location_name, intent)
 
     def _fallback_answer_generation(
         self,
-        query: str,
+        _: str,
         top_result: Optional[dict],
         location_name: Optional[str],
         intent: Optional[dict]

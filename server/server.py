@@ -1,4 +1,5 @@
 import uvicorn
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -6,13 +7,20 @@ from app.config import get_settings, init_directories
 from app.routes import generation_router, files_router, health_router, search_router
 from app.services import OpenAIService, FalService
 
+# Initialize directories on startup
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    init_directories()
+    yield
+
 # Initialize app
 app = FastAPI(
     title="Arcki API",
     description="AI-powered 3D architecture visualization API",
     version="1.0.0",
     docs_url="/docs",
-    redoc_url="/redoc"
+    redoc_url="/redoc",
+    lifespan=lifespan
 )
 
 # Configure CORS
@@ -30,11 +38,6 @@ app.include_router(health_router)
 app.include_router(generation_router)
 app.include_router(files_router)
 app.include_router(search_router, prefix="/api")
-
-# Initialize directories on startup
-@app.on_event("startup")
-async def startup():
-    init_directories()
 
 
 if __name__ == "__main__":
