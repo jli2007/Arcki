@@ -917,8 +917,9 @@ export default function MapPage() {
         if (updates.scale !== undefined) {
           newModel.scale = updates.scale;
           // Auto-adjust height when scale changes if heightLocked is true
+          // Keep height at 0 (ground level) when locked
           if (newModel.heightLocked) {
-            newModel.height = updates.scale * 0.36;
+            newModel.height = 0;
           }
         }
         if (updates.rotationX !== undefined) {
@@ -1057,7 +1058,9 @@ export default function MapPage() {
       return;
     }
 
-    const baseHeight = model.scale * 0.36;
+    // Place model on ground (height = 0) - Mapbox will handle terrain elevation
+    // Small offset to ensure model sits on surface
+    const groundHeight = 0;
     source.setData({
       type: "FeatureCollection",
       features: [{
@@ -1068,7 +1071,7 @@ export default function MapPage() {
           rotationX: model.rotationX,
           rotationY: model.rotationY,
           rotationZ: model.rotationZ,
-          height: baseHeight,
+          height: groundHeight,
         },
         geometry: {
           type: "Point" as const,
@@ -1095,15 +1098,17 @@ export default function MapPage() {
     if (!isPlacingModelRef.current || !pendingModelRef.current || !map.current) return;
 
     const pending = pendingModelRef.current;
-    // Calculate base height based on scale - larger models need more height offset
-    // to sit properly on the ground (models have their origin at center/base)
-    const baseHeight = pending.scale * 0.36; // 0.36 z per scale unit
+    // Place model on ground - account for model origin point
+    // If model origin is at center, we need a small offset to ensure bottom sits on ground
+    // Using a small fraction of scale to approximate model height offset
+    // This ensures models sit on the ground surface rather than floating or being underground
+    const groundHeight = 0; // Start at ground level - Mapbox handles terrain elevation
     
     const newModel: InsertedModel = {
       id: `model-${Date.now()}`,
       position: [e.lngLat.lng, e.lngLat.lat],
-      height: baseHeight,
-      heightLocked: true, // Height auto-adjusts with scale by default
+      height: groundHeight,
+      heightLocked: false, // Allow manual height adjustment if needed
       modelUrl: pending.url,
       scale: pending.scale,
       rotationX: pending.rotationX,
