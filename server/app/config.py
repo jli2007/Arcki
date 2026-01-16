@@ -1,11 +1,52 @@
 import os
 from pathlib import Path
 from functools import lru_cache
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import field_validator
+
+# Load .env file FIRST and explicitly set environment variables
+# This ensures .env file values take precedence over system environment variables
+# Try multiple paths in case the module is imported from different locations
+_env_paths = [
+    Path(__file__).parent.parent.parent / ".env",  # server/.env
+    Path.cwd() / ".env",  # Current working directory
+    Path(__file__).parent.parent / ".env",  # Fallback
+]
+
+_env_path = None
+for path in _env_paths:
+    if path.exists():
+        _env_path = path
+        break
+
+if _env_path and _env_path.exists():
+    # Read .env file directly and set environment variables explicitly
+    with open(_env_path, 'r') as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith('#') and '=' in line:
+                key, value = line.split('=', 1)
+                key = key.strip()
+                value = value.strip()
+                # Remove quotes if present
+                if value.startswith('"') and value.endswith('"'):
+                    value = value[1:-1]
+                elif value.startswith("'") and value.endswith("'"):
+                    value = value[1:-1]
+                # Explicitly override environment variable with .env file value
+                # CRITICAL: This must happen before Settings class reads env vars
+                os.environ[key] = value
 
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore"  # Ignore extra env vars that don't match fields
+    )
 
     # API Keys
     openai_api_key: str = ""
@@ -36,9 +77,19 @@ class Settings(BaseSettings):
     default_texture_size: int = 1024 # Max resolution
     default_mesh_simplify: float = 0.95  # 0.9 = max detail (minimum simplification)
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
+    @field_validator('debug', mode='before')
+    @classmethod
+    def parse_debug(cls, v):
+        """Parse debug field, handling non-boolean values gracefully."""
+        if isinstance(v, bool):
+            return v
+        if isinstance(v, str):
+            # Only accept explicit boolean strings
+            if v.lower() in ('true', '1', 'yes', 'on'):
+                return True
+            # For any other value (including 'WARN'), return False
+            return False
+        return False
 
 
 @lru_cache
