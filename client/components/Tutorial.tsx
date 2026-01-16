@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { ChevronLeftIcon, ChevronRightIcon, Cross2Icon, InfoCircledIcon } from "@radix-ui/react-icons";
+import { ChevronLeftIcon, ChevronRightIcon, Cross2Icon } from "@radix-ui/react-icons";
 
 interface TutorialStep {
   id: string;
@@ -240,64 +240,25 @@ export function Tutorial({ onComplete, onSkip }: TutorialProps) {
 
   return (
     <>
-      {/* Dimmed overlay with cutout */}
+      {/* Dimmed overlay with cutout and blur */}
       <div
         ref={overlayRef}
-        className="fixed inset-0 z-[9998] transition-opacity duration-300 pointer-events-none"
-      >
-        {/* Top overlay */}
-        {highlightRect && (
-          <div
-            className="absolute bg-black/20 transition-all duration-300"
-            style={{
-              top: 0,
-              left: 0,
-              right: 0,
-              height: highlightRect.top,
-            }}
-          />
-        )}
-        {/* Bottom overlay */}
-        {highlightRect && (
-          <div
-            className="absolute bg-black/20 transition-all duration-300"
-            style={{
-              top: highlightRect.bottom,
-              left: 0,
-              right: 0,
-              bottom: 0,
-            }}
-          />
-        )}
-        {/* Left overlay */}
-        {highlightRect && (
-          <div
-            className="absolute bg-black/20 transition-all duration-300"
-            style={{
-              top: highlightRect.top,
-              left: 0,
-              width: highlightRect.left,
-              height: highlightRect.height,
-            }}
-          />
-        )}
-        {/* Right overlay */}
-        {highlightRect && (
-          <div
-            className="absolute bg-black/20 transition-all duration-300"
-            style={{
-              top: highlightRect.top,
-              left: highlightRect.right,
-              right: 0,
-              height: highlightRect.height,
-            }}
-          />
-        )}
-        {/* Full overlay for center steps */}
-        {!highlightRect && (
-          <div className="absolute inset-0 bg-black/20" />
-        )}
-      </div>
+        className="fixed inset-0 z-[9998] transition-opacity duration-300 pointer-events-none bg-black/20 backdrop-blur-sm"
+        style={highlightRect ? {
+          clipPath: `polygon(
+            0% 0%,
+            0% 100%,
+            ${highlightRect.left}px 100%,
+            ${highlightRect.left}px ${highlightRect.top}px,
+            ${highlightRect.right}px ${highlightRect.top}px,
+            ${highlightRect.right}px ${highlightRect.bottom}px,
+            ${highlightRect.left}px ${highlightRect.bottom}px,
+            ${highlightRect.left}px 100%,
+            100% 100%,
+            100% 0%
+          )`,
+        } : undefined}
+      />
 
       {/* Highlight border */}
       {highlightRect && (
@@ -318,9 +279,6 @@ export function Tutorial({ onComplete, onSkip }: TutorialProps) {
         style={tooltipStyle}
       >
         <div className="flex items-start gap-3 mb-4">
-          <div className="p-2 rounded-lg bg-white/10">
-            <InfoCircledIcon className="text-white w-5 h-5" />
-          </div>
           <div className="flex-1">
             <h3 className="text-white font-semibold text-lg mb-1">{step.title}</h3>
             <p className="text-white/70 text-sm leading-relaxed">{step.description}</p>
@@ -353,22 +311,15 @@ export function Tutorial({ onComplete, onSkip }: TutorialProps) {
           <button
             onClick={handlePrevious}
             disabled={isFirstStep}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-white/70 hover:text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed text-sm font-medium"
+            className="flex items-center justify-center gap-2 px-4 h-10 rounded-xl bg-black/40 backdrop-blur-md border border-white/10 text-white/60 hover:text-white hover:bg-black/60 transition-all disabled:opacity-30 disabled:cursor-not-allowed text-sm font-medium"
           >
             <ChevronLeftIcon width={16} height={16} />
             Previous
           </button>
 
           <button
-            onClick={handleSkip}
-            className="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-white/70 hover:text-white transition-all text-sm font-medium"
-          >
-            Skip Tutorial
-          </button>
-
-          <button
             onClick={handleNext}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white hover:bg-white/90 text-black transition-all text-sm font-medium"
+            className="flex items-center justify-center gap-2 px-4 h-10 rounded-xl bg-black/40 backdrop-blur-md border border-white/10 text-white hover:bg-black/60 transition-all text-sm font-medium"
           >
             {isLastStep ? "Get Started" : "Next"}
             {!isLastStep && <ChevronRightIcon width={16} height={16} />}
