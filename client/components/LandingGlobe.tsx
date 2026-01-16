@@ -3,6 +3,65 @@
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 
+const vertexShader = `
+  uniform sampler2D bumpTexture;
+  uniform float bumpScale;
+
+  varying vec2 vUv;
+  varying float vDisplacement;
+
+  void main() {
+    vUv = uv;
+
+    // For a sphere, normal is just the normalized position (direction from center)
+    vec3 sphereNormal = normalize(position);
+
+    // Sample bump map for elevation
+    vec4 bumpData = texture2D(bumpTexture, uv);
+    vDisplacement = bumpData.r;
+
+    // Calculate displacement from bump map
+    float displacement = bumpData.r * bumpScale;
+
+    // Apply displacement along sphere normal
+    vec3 newPosition = position + sphereNormal * displacement;
+
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(newPosition, 1.0);
+    gl_PointSize = 2.5;
+  }
+`;
+
+const fragmentShader = `
+  uniform sampler2D rainbowTexture;
+  uniform sampler2D specTexture;
+
+  varying vec2 vUv;
+  varying float vDisplacement;
+
+  void main() {
+    // Sample textures
+    vec4 rainbow = texture2D(rainbowTexture, vUv);
+    vec4 spec = texture2D(specTexture, vUv);
+
+    // spec.r: 0 = land (black), 1 = ocean (white)
+    float isLand = 1.0 - spec.r;
+
+    // Land gets rainbow color, ocean is very dim
+    vec3 landColor = rainbow.rgb * (0.8 + vDisplacement * 0.4);
+    vec3 oceanColor = vec3(0.1, 0.15, 0.2);
+
+    vec3 finalColor = mix(oceanColor, landColor, isLand);
+    float alpha = mix(0.3, 1.0, isLand);
+
+    // Circular point shape
+    vec2 center = gl_PointCoord - vec2(0.5);
+    float dist = length(center);
+    if (dist > 0.5) discard;
+
+    gl_FragColor = vec4(finalColor, alpha);
+  }
+`;
+
 export default function LandingGlobe() {
   const mountRef = useRef<HTMLDivElement>(null);
 
@@ -16,7 +75,7 @@ export default function LandingGlobe() {
       0.1,
       1000
     );
-    camera.position.set(0, 0.3, 3); // Zoomed out
+    camera.position.set(0, 0.3, 4.5);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
@@ -25,68 +84,63 @@ export default function LandingGlobe() {
 
     mountRef.current.appendChild(renderer.domElement);
 
-    // Manual rotation variables
+    // Mouse tracking for drag rotation
     let isDragging = false;
     let previousMousePosition = { x: 0, y: 0 };
     const rotationSpeed = 0.005;
 
+    // Load textures
     const textureLoader = new THREE.TextureLoader();
-    const globeTexture = textureLoader.load("/landingtexture.jpg");
+    const bumpTexture = textureLoader.load("/01_earthbump1k.jpg");
+    const specTexture = textureLoader.load("/02_earthspec1k.jpg");
+    const rainbowTexture = textureLoader.load("/04_rainbow1k.jpg");
 
-    // Globe group for rotation
+    // Globe group for rotation - shifted down to show whole globe
     const globeGroup = new THREE.Group();
-    globeGroup.position.set(0, -1.2, 0); // Shift globe down
+    globeGroup.position.set(0, -0.4, 0);
     scene.add(globeGroup);
 
-    camera.lookAt(0, -0.5, 0);
+    camera.lookAt(0, -0.3, 0);
 
-    // Create textured Earth sphere
-    const earthGeo = new THREE.SphereGeometry(1.3, 64, 64);
-    const earthMat = new THREE.MeshBasicMaterial({
-      map: globeTexture,
-      transparent: false,
+    const radius = 1.3;
+    const scale = 1.4;
+
+    // Create wireframe base (very transparent)
+    const wireGeo = new THREE.IcosahedronGeometry(radius, 16);
+    const wireMat = new THREE.MeshBasicMaterial({
+      color: 0x3366ff,
+      wireframe: true,
+      transparent: true,
+      opacity: 0.03,
     });
-    const earthMesh = new THREE.Mesh(earthGeo, earthMat);
-    globeGroup.add(earthMesh);
+    const wireMesh = new THREE.Mesh(wireGeo, wireMat);
+    wireMesh.scale.set(scale, scale, scale);
+    globeGroup.add(wireMesh);
 
-    // Create stars
-    const createStars = (count: number) => {
-      const geometry = new THREE.BufferGeometry();
-      const positions = new Float32Array(count * 3);
+    // Create points sphere with shader material
+    const pointsGeo = new THREE.IcosahedronGeometry(radius, 120);
 
-      for (let i = 0; i < count; i++) {
-        const radius = 30 + Math.random() * 70;
-        const theta = Math.random() * Math.PI * 2;
-        const phi = Math.acos(2 * Math.random() - 1);
+    const shaderMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        rainbowTexture: { value: rainbowTexture },
+        bumpTexture: { value: bumpTexture },
+        specTexture: { value: specTexture },
+        bumpScale: { value: 0.04 },
+      },
+      vertexShader,
+      fragmentShader,
+      transparent: true,
+      depthWrite: false,
+    });
 
-        positions[i * 3] = radius * Math.sin(phi) * Math.cos(theta);
-        positions[i * 3 + 1] = radius * Math.sin(phi) * Math.sin(theta);
-        positions[i * 3 + 2] = radius * Math.cos(phi);
-      }
-
-      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-
-      const material = new THREE.PointsMaterial({
-        color: 0xffffff,
-        size: 0.3,
-        transparent: true,
-        opacity: 0.8,
-        sizeAttenuation: true,
-      });
-
-      return new THREE.Points(geometry, material);
-    };
-
-    const stars = createStars(1500);
-    scene.add(stars);
+    const pointsMesh = new THREE.Points(pointsGeo, shaderMaterial);
+    pointsMesh.scale.set(scale, scale, scale);
+    globeGroup.add(pointsMesh);
 
     function animate() {
-      // Passive rotation of stars
-      stars.rotation.y += 0.0001;
-
-      // Passive rotation of globe when not dragging
+      // Passive rotation when not dragging
       if (!isDragging) {
-        globeGroup.rotation.y += 0.002;
+        globeGroup.rotation.y += 0.0012;
       }
 
       renderer.render(scene, camera);
@@ -95,6 +149,7 @@ export default function LandingGlobe() {
     animate();
 
     function onMouseMove(evt: MouseEvent) {
+      // Handle drag rotation
       if (isDragging) {
         const deltaX = evt.clientX - previousMousePosition.x;
         const deltaY = evt.clientY - previousMousePosition.y;
@@ -110,14 +165,14 @@ export default function LandingGlobe() {
       isDragging = true;
       previousMousePosition = { x: evt.clientX, y: evt.clientY };
       if (mountRef.current) {
-        mountRef.current.style.cursor = 'grabbing';
+        mountRef.current.style.cursor = "grabbing";
       }
     }
 
     function onMouseUp() {
       isDragging = false;
       if (mountRef.current) {
-        mountRef.current.style.cursor = 'grab';
+        mountRef.current.style.cursor = "grab";
       }
     }
 
@@ -128,7 +183,7 @@ export default function LandingGlobe() {
     }
 
     if (mountRef.current) {
-      mountRef.current.style.cursor = 'grab';
+      mountRef.current.style.cursor = "grab";
     }
 
     window.addEventListener("mousemove", onMouseMove);
@@ -144,12 +199,23 @@ export default function LandingGlobe() {
 
       const mount = mountRef.current;
       if (mount && mount.contains(renderer.domElement)) {
-        mount.style.cursor = 'default';
+        mount.style.cursor = "default";
         mount.removeChild(renderer.domElement);
       }
       renderer.dispose();
     };
   }, []);
 
-  return <div ref={mountRef} style={{ width: "100vw", height: "100vh", position: "fixed", top: 0, left: 0 }} />;
+  return (
+    <div
+      ref={mountRef}
+      style={{
+        width: "100%",
+        height: "100%",
+        position: "absolute",
+        top: 0,
+        left: 0,
+      }}
+    />
+  );
 }

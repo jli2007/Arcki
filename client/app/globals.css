@@ -120,8 +120,12 @@
   * {
     @apply border-border outline-ring/50;
   }
+  html, body {
+    overscroll-behavior: none;
+    background-color: black;
+  }
   body {
-    @apply bg-background text-foreground font-sans;
+    @apply text-foreground font-sans;
   }
   h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-heading);
@@ -139,4 +143,35 @@ button{
 
 button:disabled {
   cursor: default;
+}
+
+/* Accordion animations */
+@keyframes accordion-down {
+  from {
+    height: 0;
+    opacity: 0;
+  }
+  to {
+    height: var(--radix-accordion-content-height);
+    opacity: 1;
+  }
+}
+
+@keyframes accordion-up {
+  from {
+    height: var(--radix-accordion-content-height);
+    opacity: 1;
+  }
+  to {
+    height: 0;
+    opacity: 0;
+  }
+}
+
+.animate-accordion-down {
+  animation: accordion-down 0.3s ease-out;
+}
+
+.animate-accordion-up {
+  animation: accordion-up 0.3s ease-out;
 }

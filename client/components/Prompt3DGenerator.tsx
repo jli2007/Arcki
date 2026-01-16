@@ -604,7 +604,7 @@ export function Prompt3DGenerator({ isVisible, onClose, onRequestExpand, onPlace
 
               {/* Quick Prompts */}
               <div className="space-y-2">
-                <label className="text-white/70 text-sm font-medium">Popular Styles</label>
+                <label className="text-white/70 text-sm font-medium">Popular Snippets</label>
                 <div className="flex flex-wrap gap-2">
                   {quickPrompts.map((qp) => (
                     <button

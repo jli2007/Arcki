@@ -8,7 +8,6 @@ import {
   Cross2Icon,
 } from "@radix-ui/react-icons";
 import * as Tooltip from "@radix-ui/react-tooltip";
-import mapboxgl from "mapbox-gl";
 
 interface MapControlsProps {
   map: mapboxgl.Map | null;
@@ -16,7 +15,6 @@ interface MapControlsProps {
 
 export function MapControls({ map }: MapControlsProps) {
   const [is2D, setIs2D] = useState(true);
-  const [pitch, setPitch] = useState(0);
   const [bearing, setBearing] = useState(0);
   const [zoom, setZoom] = useState(1.5);
   const [showShortcuts, setShowShortcuts] = useState(false);
@@ -26,7 +24,6 @@ export function MapControls({ map }: MapControlsProps) {
     if (!map) return;
 
     const updateState = () => {
-      setPitch(Math.round(map.getPitch()));
       setBearing(Math.round(map.getBearing()));
       setZoom(Math.round(map.getZoom() * 10) / 10);
       setIs2D(map.getPitch() === 0);
@@ -75,7 +72,8 @@ export function MapControls({ map }: MapControlsProps) {
 
   return (
     <Tooltip.Provider delayDuration={0}>
-      <div data-tutorial="map-controls" className="absolute right-4 bottom-8 z-10 flex flex-col-reverse items-end gap-2">
+
+      <div className="absolute right-4 bottom-8 z-20 flex flex-col-reverse items-end gap-2">
         {/* Main Controls Row */}
         <div className="flex flex-row items-center gap-2">
           {/* Zoom Controls */}
@@ -89,15 +87,13 @@ export function MapControls({ map }: MapControlsProps) {
                   <MinusIcon width={18} height={18} />
                 </button>
               </Tooltip.Trigger>
-              <Tooltip.Portal>
-                <Tooltip.Content
-                  className="select-none rounded-lg bg-black/80 backdrop-blur-md border border-white/10 px-3 py-1.5 text-xs font-medium text-white shadow-xl z-50"
-                  side="top"
-                  sideOffset={5}
-                >
-                  Zoom out
-                </Tooltip.Content>
-              </Tooltip.Portal>
+              <Tooltip.Content
+                className="select-none rounded-lg bg-black/80 backdrop-blur-md border border-white/10 px-3 py-1.5 text-xs font-medium text-white shadow-xl z-50"
+                side="top"
+                sideOffset={5}
+              >
+                Zoom out
+              </Tooltip.Content>
             </Tooltip.Root>
             
             <div className="px-2 text-white/50 text-xs font-medium min-w-[40px] text-center border-x border-white/10">
@@ -113,15 +109,13 @@ export function MapControls({ map }: MapControlsProps) {
                   <PlusIcon width={18} height={18} />
                 </button>
               </Tooltip.Trigger>
-              <Tooltip.Portal>
-                <Tooltip.Content
-                  className="select-none rounded-lg bg-black/80 backdrop-blur-md border border-white/10 px-3 py-1.5 text-xs font-medium text-white shadow-xl z-50"
-                  side="top"
-                  sideOffset={5}
-                >
-                  Zoom in
-                </Tooltip.Content>
-              </Tooltip.Portal>
+              <Tooltip.Content
+                className="select-none rounded-lg bg-black/80 backdrop-blur-md border border-white/10 px-3 py-1.5 text-xs font-medium text-white shadow-xl z-50"
+                side="top"
+                sideOffset={5}
+              >
+                Zoom in
+              </Tooltip.Content>
             </Tooltip.Root>
           </div>
 
@@ -139,15 +133,13 @@ export function MapControls({ map }: MapControlsProps) {
                 {is2D ? "2D" : "3D"}
               </button>
             </Tooltip.Trigger>
-            <Tooltip.Portal>
-              <Tooltip.Content
-                className="select-none rounded-lg bg-black/80 backdrop-blur-md border border-white/10 px-3 py-1.5 text-xs font-medium text-white shadow-xl z-50"
-                side="top"
-                sideOffset={5}
-              >
-                Switch to {is2D ? "3D" : "2D"} view
-              </Tooltip.Content>
-            </Tooltip.Portal>
+            <Tooltip.Content
+              className="select-none rounded-lg bg-black/80 backdrop-blur-md border border-white/10 px-3 py-1.5 text-xs font-medium text-white shadow-xl z-50"
+              side="top"
+              sideOffset={5}
+            >
+              Switch to {is2D ? "3D" : "2D"} view
+            </Tooltip.Content>
           </Tooltip.Root>
 
           {/* Compass / Reset North */}
@@ -165,15 +157,13 @@ export function MapControls({ map }: MapControlsProps) {
                 </svg>
               </button>
             </Tooltip.Trigger>
-            <Tooltip.Portal>
-              <Tooltip.Content
-                className="select-none rounded-lg bg-black/80 backdrop-blur-md border border-white/10 px-3 py-1.5 text-xs font-medium text-white shadow-xl z-50"
-                side="top"
-                sideOffset={5}
-              >
-                Reset to north ({Math.round(bearing)}°)
-              </Tooltip.Content>
-            </Tooltip.Portal>
+            <Tooltip.Content
+              className="select-none rounded-lg bg-black/80 backdrop-blur-md border border-white/10 px-3 py-1.5 text-xs font-medium text-white shadow-xl z-50"
+              side="top"
+              sideOffset={5}
+            >
+              Reset to north ({Math.round(bearing)}°)
+            </Tooltip.Content>
           </Tooltip.Root>
 
           {/* Keyboard Shortcuts Info */}
@@ -190,15 +180,13 @@ export function MapControls({ map }: MapControlsProps) {
                 <InfoCircledIcon width={18} height={18} />
               </button>
             </Tooltip.Trigger>
-            <Tooltip.Portal>
-              <Tooltip.Content
-                className="select-none rounded-lg bg-black/80 backdrop-blur-md border border-white/10 px-3 py-1.5 text-xs font-medium text-white shadow-xl z-50"
-                side="top"
-                sideOffset={5}
-              >
-                Keyboard shortcuts
-              </Tooltip.Content>
-            </Tooltip.Portal>
+            <Tooltip.Content
+              className="select-none rounded-lg bg-black/80 backdrop-blur-md border border-white/10 px-3 py-1.5 text-xs font-medium text-white shadow-xl z-50"
+              side="top"
+              sideOffset={5}
+            >
+              Keyboard shortcuts
+            </Tooltip.Content>
           </Tooltip.Root>
         </div>
 
