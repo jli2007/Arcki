@@ -18,6 +18,7 @@ import { SearchBar } from "@/components/SearchBar";
 import { SearchResultPopup } from "@/components/SearchResultPopup";
 import { MapControls } from "@/components/MapControls";
 import { GitHubLogoIcon, ExclamationTriangleIcon } from "@radix-ui/react-icons";
+import { BugReportModal } from "@/components/BugReportModal";
 
 interface SelectedBuilding {
   id: string | number;
@@ -139,6 +140,7 @@ export default function MapPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [previewPosition, setPreviewPosition] = useState<[number, number] | null>(null);
   const [isSearching, setIsSearching] = useState(false);
+  const [showBugReportModal, setShowBugReportModal] = useState(false);
   const [searchResult, setSearchResult] = useState<{
     intent: {
       action: string;
@@ -1559,15 +1561,13 @@ export default function MapPage() {
       </a>
 
       {/* Bug Report button - below GitHub button */}
-      <a
-        href="https://github.com/jli2007/delta/issues/new"
-        target="_blank"
-        rel="noopener noreferrer"
+      <button
+        onClick={() => setShowBugReportModal(true)}
         className="absolute top-20 left-4 z-10 p-3 rounded-xl bg-black/40 backdrop-blur-md border border-white/10 text-white/60 hover:text-white hover:bg-black/60 transition-all"
         title="Report a bug"
       >
         <ExclamationTriangleIcon width={20} height={20} />
-      </a>
+      </button>
 
       <Toolbar
         activeTool={activeTool}
@@ -1587,6 +1587,9 @@ export default function MapPage() {
           onClose={() => handleSetActiveTool(null)}
           onPlaceModel={handlePlaceModel}
         />
+      )}
+      {showBugReportModal && (
+        <BugReportModal onClose={() => setShowBugReportModal(false)} />
       )}
       {isPlacingModel && (
         <div className="absolute top-24 left-1/2 -translate-x-1/2 z-20 px-4 py-2 rounded-lg bg-black/60 backdrop-blur-md border border-white/10 text-white text-sm">
