@@ -158,10 +158,10 @@ export default function SimpleGlobe({ markers = [], targetMarkerIndex = 0, isLoc
 
     const textureLoader = new THREE.TextureLoader();
     const starSprite = textureLoader.load("/circle.png");
-    const otherMap = textureLoader.load("/04_rainbow1k.jpg");
+    const otherMap = textureLoader.load("/texture3.jpg");
     const colorMap = textureLoader.load("/00_earthmap1k.jpg");
-    const elevMap = textureLoader.load("/01_earthbump1k.jpg");
-    const alphaMap = textureLoader.load("/02_earthspec1k.jpg");
+    const elevMap = textureLoader.load("/texture1.jpg");
+    const alphaMap = textureLoader.load("/texture2.jpg");
 
     // Create separate groups for horizontal and vertical rotation
     const globeYRotationGroup = new THREE.Group(); // Horizontal rotation (always around world Y-axis)

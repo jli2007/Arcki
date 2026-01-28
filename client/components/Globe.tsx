@@ -111,10 +111,10 @@ export default function EarthScene({ markers = [], currentSection = 0, onWaterlo
 
     const textureLoader = new THREE.TextureLoader();
     const starSprite = textureLoader.load("/circle.png");
-    const otherMap = textureLoader.load("/04_rainbow1k.jpg");
+    const otherMap = textureLoader.load("/texture3.jpg");
     const colorMap = textureLoader.load("/00_earthmap1k.jpg");
-    const elevMap = textureLoader.load("/01_earthbump1k.jpg");
-    const alphaMap = textureLoader.load("/02_earthspec1k.jpg");
+    const elevMap = textureLoader.load("/texture1.jpg");
+    const alphaMap = textureLoader.load("/texture2.jpg");
 
     const globeGroup = new THREE.Group();
     globeGroup.position.x = -6;

@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Image Gen</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: system-ui;
+      margin: 0;
+      padding: 20px;
+      background: #0a0a0a;
+      color: #e5e5e5;
+      min-height: 100vh;
+    }
+    .container { max-width: 1400px; margin: 0 auto; }
+    h1 { font-weight: 500; margin-bottom: 20px; font-size: 20px; color: #fff; }
+
+    .top-bar {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    .top-bar input[type="password"] {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      padding: 8px 12px;
+      border-radius: 6px;
+      color: #fff;
+      width: 280px;
+    }
+
+    .main-grid {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      gap: 20px;
+    }
+
+    .sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .card {
+      background: #141414;
+      border: 1px solid #262626;
+      border-radius: 8px;
+      padding: 16px;
+    }
+    .card-title {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #888;
+      margin-bottom: 12px;
+    }
+
+    textarea {
+      width: 100%;
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 6px;
+      padding: 12px;
+      color: #fff;
+      font-family: inherit;
+      font-size: 14px;
+      resize: vertical;
+      min-height: 100px;
+    }
+    textarea:focus { outline: none; border-color: #555; }
+
+    .controls { display: flex; flex-direction: column; gap: 12px; }
+    .control-row { display: flex; gap: 8px; align-items: center; }
+    .control-row label { font-size: 13px; color: #999; min-width: 70px; }
+
+    select, input[type="number"] {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      padding: 8px 10px;
+      border-radius: 6px;
+      color: #fff;
+      font-size: 13px;
+      flex: 1;
+    }
+    select:focus, input:focus { outline: none; border-color: #555; }
+
+    .ref-images {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .ref-image-slot {
+      width: 70px;
+      height: 70px;
+      border: 2px dashed #333;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+      transition: border-color 0.2s;
+    }
+    .ref-image-slot:hover { border-color: #555; }
+    .ref-image-slot img { width: 100%; height: 100%; object-fit: cover; }
+    .ref-image-slot .remove {
+      position: absolute;
+      top: 2px;
+      right: 2px;
+      background: rgba(0,0,0,0.7);
+      color: #fff;
+      border: none;
+      border-radius: 50%;
+      width: 18px;
+      height: 18px;
+      font-size: 12px;
+      cursor: pointer;
+      display: none;
+    }
+    .ref-image-slot:hover .remove { display: block; }
+    .ref-image-slot .plus { color: #555; font-size: 24px; }
+
+    button.generate {
+      width: 100%;
+      padding: 14px;
+      background: #fff;
+      color: #000;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    button.generate:hover { opacity: 0.9; }
+    button.generate:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .output-area {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .status {
+      font-size: 13px;
+      color: #888;
+      min-height: 20px;
+    }
+    .status.error { color: #f87171; }
+
+    .image-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+    }
+
+    .image-card {
+      background: #141414;
+      border: 1px solid #262626;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .image-card img {
+      width: 100%;
+      aspect-ratio: 1;
+      object-fit: contain;
+      background: #0a0a0a;
+    }
+    .image-card .actions {
+      padding: 12px;
+      display: flex;
+      gap: 8px;
+    }
+    .image-card button {
+      flex: 1;
+      padding: 8px;
+      background: #262626;
+      border: none;
+      border-radius: 4px;
+      color: #e5e5e5;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .image-card button:hover { background: #333; }
+
+    .history-section { margin-top: 40px; padding-top: 20px; border-top: 1px solid #262626; }
+    .history-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    .history-header h2 { font-size: 14px; font-weight: 500; color: #888; }
+    .clear-btn {
+      background: none;
+      border: 1px solid #333;
+      color: #888;
+      padding: 6px 12px;
+      border-radius: 4px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .clear-btn:hover { border-color: #555; color: #fff; }
+
+    @media (max-width: 800px) {
+      .main-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="top-bar">
+      <h1>Image Gen</h1>
+      <input type="password" id="apiKey" placeholder="OpenAI API Key">
+    </div>
+
+    <div class="main-grid">
+      <div class="sidebar">
+        <div class="card">
+          <div class="card-title">Prompt</div>
+          <textarea id="prompt" placeholder="Describe your image..."></textarea>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Reference Images</div>
+          <div class="ref-images" id="refImages">
+            <div class="ref-image-slot add-slot" onclick="addRefImage()">
+              <span class="plus">+</span>
+            </div>
+          </div>
+          <input type="file" id="refInput" accept="image/*" multiple hidden>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Settings</div>
+          <div class="controls">
+            <div class="control-row">
+              <label>Model</label>
+              <select id="model">
+                <option value="gpt-image-1">gpt-image-1</option>
+                <option value="dall-e-3">DALL-E 3</option>
+                <option value="dall-e-2">DALL-E 2</option>
+              </select>
+            </div>
+            <div class="control-row">
+              <label>Size</label>
+              <select id="size">
+                <option value="1024x1024">1024x1024</option>
+                <option value="1536x1024">1536x1024</option>
+                <option value="1024x1536">1024x1536</option>
+                <option value="auto">auto</option>
+              </select>
+            </div>
+            <div class="control-row">
+              <label>Quality</label>
+              <select id="quality">
+                <option value="auto">auto</option>
+                <option value="high">high</option>
+                <option value="medium">medium</option>
+                <option value="low">low</option>
+              </select>
+            </div>
+            <div class="control-row">
+              <label>Count</label>
+              <input type="number" id="count" value="1" min="1" max="10">
+            </div>
+          </div>
+        </div>
+
+        <button class="generate" id="generateBtn" onclick="generate()">Generate</button>
+      </div>
+
+      <div class="output-area">
+        <div class="status" id="status"></div>
+        <div class="image-grid" id="output"></div>
+
+        <div class="history-section" id="historySection" style="display: none;">
+          <div class="history-header">
+            <h2>History</h2>
+            <button class="clear-btn" onclick="clearHistory()">Clear</button>
+          </div>
+          <div class="image-grid" id="history"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let refImages = [];
+
+    // Load saved API key
+    document.getElementById('apiKey').value = localStorage.getItem('openai_key') || '';
+    document.getElementById('apiKey').addEventListener('change', e => {
+      localStorage.setItem('openai_key', e.target.value);
+    });
+
+    // Keyboard shortcut
+    document.getElementById('prompt').addEventListener('keydown', e => {
+      if (e.key === 'Enter' && e.metaKey) generate();
+    });
+
+    // Reference images
+    function addRefImage() {
+      document.getElementById('refInput').click();
+    }
+
+    document.getElementById('refInput').addEventListener('change', async e => {
+      for (const file of e.target.files) {
+        const base64 = await fileToBase64(file);
+        refImages.push({ base64, name: file.name });
+        renderRefImages();
+      }
+      e.target.value = '';
+    });
+
+    function removeRefImage(index) {
+      refImages.splice(index, 1);
+      renderRefImages();
+    }
+
+    function renderRefImages() {
+      const container = document.getElementById('refImages');
+      container.innerHTML = refImages.map((img, i) => `
+        <div class="ref-image-slot">
+          <img src="${img.base64}">
+          <button class="remove" onclick="removeRefImage(${i})">×</button>
+        </div>
+      `).join('') + `
+        <div class="ref-image-slot add-slot" onclick="addRefImage()">
+          <span class="plus">+</span>
+        </div>
+      `;
+    }
+
+    function fileToBase64(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+
+    async function generate() {
+      const apiKey = document.getElementById('apiKey').value;
+      const prompt = document.getElementById('prompt').value;
+      const model = document.getElementById('model').value;
+      const size = document.getElementById('size').value;
+      const quality = document.getElementById('quality').value;
+      const count = parseInt(document.getElementById('count').value) || 1;
+
+      if (!apiKey) return setStatus('Need API key', true);
+      if (!prompt) return setStatus('Need prompt', true);
+
+      const btn = document.getElementById('generateBtn');
+      btn.disabled = true;
+      btn.textContent = 'Generating...';
+      setStatus(`Generating ${count} image${count > 1 ? 's' : ''}...`);
+      document.getElementById('output').innerHTML = '';
+
+      try {
+        // For models that don't support n>1, we make parallel requests
+        const supportsBatch = model === 'dall-e-2' || model === 'gpt-image-1';
+        const maxN = model === 'dall-e-3' ? 1 : count;
+
+        let allImages = [];
+
+        if (refImages.length > 0 && model === 'gpt-image-1') {
+          // Use edits endpoint with reference images
+          const requests = [];
+          for (let i = 0; i < count; i++) {
+            requests.push(generateWithRef(apiKey, prompt, size, quality, refImages));
+          }
+          const results = await Promise.all(requests);
+          allImages = results.flat();
+        } else if (supportsBatch && count > 1) {
+          // Single request with n > 1
+          const images = await generateImages(apiKey, model, prompt, size, quality, Math.min(count, 10));
+          allImages = images;
+        } else {
+          // Parallel requests for DALL-E 3 or when we need multiple
+          const requests = [];
+          const numRequests = model === 'dall-e-3' ? count : 1;
+          const perRequest = model === 'dall-e-3' ? 1 : count;
+
+          for (let i = 0; i < numRequests; i++) {
+            requests.push(generateImages(apiKey, model, prompt, size, quality, perRequest));
+          }
+          const results = await Promise.all(requests);
+          allImages = results.flat();
+        }
+
+        renderImages(allImages, document.getElementById('output'));
+        saveToHistory(prompt, allImages);
+        setStatus(`Generated ${allImages.length} image${allImages.length > 1 ? 's' : ''}`);
+
+      } catch (err) {
+        setStatus('Error: ' + err.message, true);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Generate';
+      }
+    }
+
+    async function generateImages(apiKey, model, prompt, size, quality, n) {
+      const body = { model, prompt, n };
+
+      if (size !== 'auto') body.size = size;
+
+      if (model === 'gpt-image-1') {
+        body.quality = quality;
+      } else if (model === 'dall-e-3') {
+        body.quality = quality === 'high' ? 'hd' : 'standard';
+      }
+
+      const res = await fetch('https://api.openai.com/v1/images/generations', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify(body)
+      });
+
+      const data = await res.json();
+      if (data.error) throw new Error(data.error.message);
+
+      return data.data.map(img => img.b64_json
+        ? `data:image/png;base64,${img.b64_json}`
+        : img.url
+      );
+    }
+
+    async function generateWithRef(apiKey, prompt, size, quality, refs) {
+      const formData = new FormData();
+      formData.append('model', 'gpt-image-1');
+      formData.append('prompt', prompt);
+      if (size !== 'auto') formData.append('size', size);
+      formData.append('quality', quality);
+
+      // Add reference images
+      for (let i = 0; i < refs.length; i++) {
+        const blob = await fetch(refs[i].base64).then(r => r.blob());
+        formData.append('image[]', blob, refs[i].name || `ref${i}.png`);
+      }
+
+      const res = await fetch('https://api.openai.com/v1/images/edits', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${apiKey}` },
+        body: formData
+      });
+
+      const data = await res.json();
+      if (data.error) throw new Error(data.error.message);
+
+      return data.data.map(img => img.b64_json
+        ? `data:image/png;base64,${img.b64_json}`
+        : img.url
+      );
+    }
+
+    function renderImages(images, container) {
+      container.innerHTML = images.map(src => `
+        <div class="image-card">
+          <img src="${src}" onclick="window.open('${src}', '_blank')">
+          <div class="actions">
+            <button onclick="downloadImage('${src}')">Download</button>
+            <button onclick="useAsRef('${src}')">Use as Ref</button>
+            <button onclick="copyImage('${src}')">Copy</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function downloadImage(src) {
+      const a = document.createElement('a');
+      a.href = src;
+      a.download = `image-${Date.now()}.png`;
+      a.click();
+    }
+
+    function useAsRef(src) {
+      refImages.push({ base64: src, name: 'from-output.png' });
+      renderRefImages();
+    }
+
+    async function copyImage(src) {
+      try {
+        const res = await fetch(src);
+        const blob = await res.blob();
+        await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
+        setStatus('Copied to clipboard');
+      } catch (e) {
+        setStatus('Copy failed', true);
+      }
+    }
+
+    function setStatus(msg, isError = false) {
+      const el = document.getElementById('status');
+      el.textContent = msg;
+      el.className = 'status' + (isError ? ' error' : '');
+    }
+
+    // History
+    function saveToHistory(prompt, images) {
+      let history = JSON.parse(localStorage.getItem('image_history') || '[]');
+      history.unshift({ prompt, images, time: Date.now() });
+      history = history.slice(0, 50); // Keep last 50
+      localStorage.setItem('image_history', JSON.stringify(history));
+      renderHistory();
+    }
+
+    function renderHistory() {
+      const history = JSON.parse(localStorage.getItem('image_history') || '[]');
+      const section = document.getElementById('historySection');
+      const container = document.getElementById('history');
+
+      if (history.length === 0) {
+        section.style.display = 'none';
+        return;
+      }
+
+      section.style.display = 'block';
+      const allImages = history.flatMap(h => h.images);
+      renderImages(allImages.slice(0, 20), container);
+    }
+
+    function clearHistory() {
+      localStorage.removeItem('image_history');
+      renderHistory();
+    }
+
+    // Init
+    renderHistory();
+  </script>
+</body>
+</html>

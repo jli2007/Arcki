@@ -5,19 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import dynamic from "next/dynamic";
 import { motion, useScroll, useTransform } from "motion/react";
-import * as Accordion from "@radix-ui/react-accordion";
-import {
-  Globe,
-  Layers,
-  Box,
-  MousePointer2,
-  FolderOpen,
-  ArrowRight,
-  ChevronDown,
-  Map,
-  Wand2,
-  Play,
-} from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { MobileWarningModal } from "@/components/MobileWarningModal";
 import { useMobileCheck } from "@/hooks/useMobileCheck";
 
@@ -43,88 +31,6 @@ const staggerContainer = {
   viewport: { once: true },
 };
 
-const features = [
-  {
-    icon: Globe,
-    title: "Global Coverage",
-    description:
-      "Access detailed 3D maps of any location worldwide.",
-  },
-  {
-    icon: Layers,
-    title: "Layer Management",
-    description:
-      "Organize your designs with powerful layer controls. Toggle visibility, lock elements, group objects.",
-  },
-  {
-    icon: Box,
-    title: "3D Generation",
-    description:
-      "Transform text into detailed 3D models in seconds.",
-  },
-  {
-    icon: MousePointer2,
-    title: "Intuitive Controls",
-    description:
-      "Drag, drop, rotate, and scale with natural gestures. No learning curve required.",
-  },
-  {
-    icon: FolderOpen,
-    title: "Asset Library",
-    description:
-      "Thousands of pre-built models. Import your own 3D assets.",
-  },
-  {
-    icon: Wand2,
-    title: "AI-Powered",
-    description:
-      "Let AI do literally do anything.",
-  },
-];
-
-const steps = [
-  {
-    number: "01",
-    title: "Choose a Location",
-    description:
-      "Search any address. Our platform loads the 3D terrain and existing structures automatically.",
-  },
-  {
-    number: "02",
-    title: "Generate and Import Anything",
-    description:
-      "Create your own 3D models with text prompts or import your own 3D models.",
-  },
-  {
-    number: "03",
-    title: "Design to Your Upmost Creativity",
-    description:
-      "Delete existing buildings, replacing it with your own vision.",
-  },
-];
-
-const faqs = [
-  {
-    question: "What file formats can I export?",
-    answer:
-      "You can export your projects as high-resolution images (PNG, JPG), 3D models (GLTF, OBJ, FBX), or interactive web embeds. We also support direct integration with popular CAD software.",
-  },
-  {
-    question: "Is there a free trial?",
-    answer:
-      "Yes! Start with our free tier which includes basic editing tools and limited exports. Upgrade anytime to unlock advanced features, higher resolution exports, and collaboration tools.",
-  },
-  {
-    question: "Can I import my own 3D models?",
-    answer:
-      "Absolutely. We support GLTF, GLB, OBJ, and FBX formats. Simply drag and drop your models into the editor, and they'll be automatically optimized for web performance.",
-  },
-  {
-    question: "How accurate is the terrain data?",
-    answer:
-      "Our terrain data comes from high-resolution satellite imagery and LIDAR scans where available. Urban areas typically have sub-meter accuracy, while rural areas vary by region.",
-  },
-];
 
 export default function Home() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -265,23 +171,49 @@ export default function Home() {
             <br />
               <span className="text-white/70 italic">the way you imagine it.</span>
           </h1>
-          <p className="text-base sm:text-lg md:text-xl text-gray-400 max-w-xl mx-auto mb-8 leading-relaxed">
-            Edit layouts, swap structures, visualize changes in real-time.
+          <p className="text-base sm:text-lg md:text-xl text-gray-400 max-w-2xl mx-auto mb-10 leading-relaxed whitespace-nowrap">
+            Destroy cities and design them yourself.
           </p>
-          <Button
-            size="lg"
-            className="bg-white hover:bg-white/90 text-black font-semibold px-8 sm:px-10 py-5 sm:py-6 rounded-full shadow-lg shadow-white/10 hover:shadow-xl hover:shadow-white/20 transition-all duration-300 text-base sm:text-lg"
+          <button
             onClick={handleMapNavigation}
+            className="group relative h-16 mx-auto rounded-full overflow-hidden border border-white/20 hover:border-white/40 transition-all duration-500 hover:scale-105 shadow-lg shadow-black/30 hover:shadow-xl flex items-center justify-center"
+            style={{ width: "240px" }}
           >
-            Start Building
-          </Button>
+            {/* Background image */}
+            <div
+              className="absolute inset-0 opacity-35"
+              style={{
+                backgroundImage: "url('/r6.png')",
+                backgroundSize: "cover",
+                backgroundPosition: "center",
+              }}
+            />
+            {/* Gradient fade from dark to transparent */}
+            <div
+              className="absolute inset-0"
+              style={{
+                background: "linear-gradient(to right, rgba(25, 22, 18, 0.95) 0%, rgba(25, 22, 18, 0.8) 35%, rgba(25, 22, 18, 0.3) 65%, transparent 100%)",
+              }}
+            />
+            {/* Text */}
+            <span className="relative z-10 text-white font-semibold text-xl font-serif tracking-wide">
+              Build
+            </span>
+          </button>
           </motion.div>
         </div>
       </div>
 
       {/* Features Bento Box Section */}
       <section id="features" className="relative z-10 py-24 px-6">
-        <div className="max-w-5xl mx-auto">
+        {/* Blending layer - subtle vignette to help cards pop */}
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background: "radial-gradient(ellipse at center, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.6) 70%, rgba(0,0,0,0.8) 100%)",
+          }}
+        />
+        <div className="max-w-5xl mx-auto relative">
           <motion.div className="text-center mb-16" {...fadeInUp}>
             <h2 className="text-3xl sm:text-4xl md:text-5xl font-semibold mb-4 font-serif">
               Everything you need to build
@@ -291,7 +223,7 @@ export default function Home() {
             </p>
           </motion.div>
 
-          {/* Bento Grid */}
+          {/* Bento Grid - Glassmorphism */}
           <motion.div
             className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
             variants={staggerContainer}
@@ -299,68 +231,124 @@ export default function Home() {
             whileInView="whileInView"
             viewport={{ once: true }}
           >
-            {/* Video Card - Large */}
+            {/* Hero Card - Large with image */}
             <motion.div
-              className="md:col-span-2 lg:col-span-2 row-span-2 rounded-3xl overflow-hidden bg-neutral-900 border border-white/10 hover:border-white/20 transition-all duration-300 relative min-h-[300px] md:min-h-[400px]"
+              className="md:col-span-2 lg:col-span-2 row-span-2 rounded-2xl overflow-hidden relative min-h-[300px] md:min-h-[400px] group backdrop-blur-sm border border-white/5"
+              style={{
+                background: "rgba(15, 12, 10, 0.4)",
+              }}
               variants={fadeInUp}
             >
-              <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-neutral-800 to-neutral-900">
-                <button className="w-20 h-20 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 flex items-center justify-center transition-all hover:scale-110">
-                  <Play className="w-8 h-8 text-white ml-1" />
-                </button>
+              <div
+                className="absolute inset-0 opacity-50 group-hover:opacity-60 transition-opacity duration-500"
+                style={{
+                  backgroundImage: "url('/r8.png')",
+                  backgroundSize: "cover",
+                  backgroundPosition: "center",
+                  filter: "saturate(0.8)",
+                }}
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-black/20" />
+              <div className="absolute bottom-0 left-0 right-0 p-8">
+                <h3 className="text-2xl font-semibold mb-2 font-serif text-white">Global Coverage</h3>
+                <p className="text-white/60 font-serif italic text-lg">Access detailed 3D maps of any location worldwide, powered by Mapbox.</p>
               </div>
-              <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/80 to-transparent">
-                <h3 className="text-xl font-semibold">See it in action</h3>
-                <p className="text-gray-400 text-sm">Watch how easy it is to transform any location</p>
-              </div>
-            </motion.div>
-
-            {/* Global Coverage */}
-            <motion.div
-              className="p-6 rounded-3xl bg-white/5 border border-white/10 hover:border-white/20 hover:bg-white/[0.07] transition-all duration-300"
-              variants={fadeInUp}
-            >
-              <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center mb-4">
-                <Globe className="w-6 h-6 text-white" />
-              </div>
-              <h3 className="text-xl font-semibold mb-2">Global Coverage</h3>
-              <p className="text-gray-400 text-sm">Access detailed 3D maps of any location worldwide.</p>
             </motion.div>
 
             {/* AI-Powered */}
             <motion.div
-              className="p-6 rounded-3xl bg-white/5 border border-white/10 hover:border-white/20 hover:bg-white/[0.07] transition-all duration-300"
+              className="rounded-2xl overflow-hidden relative group backdrop-blur-sm border border-white/5"
+              style={{
+                background: "rgba(15, 12, 10, 0.35)",
+              }}
               variants={fadeInUp}
             >
-              <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center mb-4">
-                <Wand2 className="w-6 h-6 text-white" />
+              <div
+                className="absolute inset-0 opacity-45 group-hover:opacity-60 transition-opacity duration-500"
+                style={{
+                  backgroundImage: "url('/r7.png')",
+                  backgroundSize: "cover",
+                  backgroundPosition: "center",
+                  filter: "saturate(0.8)",
+                }}
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-black/20" />
+              <div className="relative p-6">
+                <h3 className="text-xl font-semibold mb-2 font-serif text-white">AI-Powered</h3>
+                <p className="text-white/50 font-serif italic">Let AI do literally anything. Change the weather, delete & insert buildings.</p>
               </div>
-              <h3 className="text-xl font-semibold mb-2">AI-Powered</h3>
-              <p className="text-gray-400 text-sm">Let AI do literally anything. Change the weather, take you anywhere, delete & insert buildings.</p>
             </motion.div>
 
             {/* 3D Generation */}
             <motion.div
-              className="p-6 rounded-3xl bg-white/5 border border-white/10 hover:border-white/20 hover:bg-white/[0.07] transition-all duration-300"
+              className="rounded-2xl overflow-hidden relative group backdrop-blur-sm border border-white/5"
+              style={{
+                background: "rgba(15, 12, 10, 0.35)",
+              }}
               variants={fadeInUp}
             >
-              <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center mb-4">
-                <Box className="w-6 h-6 text-white" />
+              <div
+                className="absolute inset-0 opacity-45 group-hover:opacity-60 transition-opacity duration-500"
+                style={{
+                  backgroundImage: "url('/r11.png')",
+                  backgroundSize: "cover",
+                  backgroundPosition: "center",
+                  filter: "saturate(0.8)",
+                }}
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-black/20" />
+              <div className="relative p-6">
+                <h3 className="text-xl font-semibold mb-2 font-serif text-white">3D Generation</h3>
+                <p className="text-white/50 font-serif italic">Transform text into detailed 3D models in seconds.</p>
               </div>
-              <h3 className="text-xl font-semibold mb-2">3D Generation</h3>
-              <p className="text-gray-400 text-sm">Transform text into detailed 3D models in seconds.</p>
             </motion.div>
 
             {/* Asset Library - Wide */}
             <motion.div
-              className="md:col-span-2 p-6 rounded-3xl bg-white/5 border border-white/10 hover:border-white/20 hover:bg-white/[0.07] transition-all duration-300"
+              className="md:col-span-2 lg:col-span-2 rounded-2xl overflow-hidden relative group backdrop-blur-sm border border-white/5"
+              style={{
+                background: "rgba(15, 12, 10, 0.35)",
+              }}
               variants={fadeInUp}
             >
-              <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center mb-4">
-                <FolderOpen className="w-6 h-6 text-white" />
+              <div
+                className="absolute inset-0 opacity-40 group-hover:opacity-55 transition-opacity duration-500"
+                style={{
+                  backgroundImage: "url('/r9.png')",
+                  backgroundSize: "cover",
+                  backgroundPosition: "center",
+                  filter: "saturate(0.8)",
+                }}
+              />
+              <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/50 to-black/30" />
+              <div className="relative p-8">
+                <h3 className="text-xl font-semibold mb-2 font-serif text-white">Asset Library</h3>
+                <p className="text-white/50 font-serif italic text-lg">Import your own 3D assets. All models you generate are saved to your library.</p>
               </div>
-              <h3 className="text-xl font-semibold mb-2">Asset Library</h3>
-              <p className="text-gray-400 text-sm">Import your own 3D assets. All 3D models you generate are saved in this library.</p>
+            </motion.div>
+
+            {/* Intuitive Controls */}
+            <motion.div
+              className="rounded-2xl overflow-hidden relative group backdrop-blur-sm border border-white/5"
+              style={{
+                background: "rgba(15, 12, 10, 0.35)",
+              }}
+              variants={fadeInUp}
+            >
+              <div
+                className="absolute inset-0 opacity-45 group-hover:opacity-60 transition-opacity duration-500"
+                style={{
+                  backgroundImage: "url('/r13.png')",
+                  backgroundSize: "cover",
+                  backgroundPosition: "center",
+                  filter: "saturate(0.8)",
+                }}
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-black/20" />
+              <div className="relative p-6">
+                <h3 className="text-xl font-semibold mb-2 font-serif text-white">Intuitive Controls</h3>
+                <p className="text-white/50 font-serif italic">Drag, drop, rotate, and scale with natural gestures.</p>
+              </div>
             </motion.div>
           </motion.div>
         </div>
@@ -368,42 +356,114 @@ export default function Home() {
 
       {/* How it Works Section */}
       <section className="relative z-10 py-24 px-6">
-        <div className="max-w-5xl mx-auto">
+        {/* Blending layer */}
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background: "radial-gradient(ellipse at center, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0.5) 60%, rgba(0,0,0,0.7) 100%)",
+          }}
+        />
+        <div className="max-w-6xl mx-auto relative">
           <motion.div className="text-center mb-16" {...fadeInUp}>
             <h2 className="text-3xl sm:text-4xl md:text-5xl font-semibold mb-4 font-serif">
               How it works
             </h2>
-            <p className="text-gray-400 text-lg max-w-2xl mx-auto">
-              Redesign the world to your own taste.
+            <p className="text-white/50 text-lg max-w-2xl mx-auto font-serif italic">
+              Three steps to reshape reality.
             </p>
           </motion.div>
 
-          <div className="space-y-12">
-            {steps.map((step, index) => (
-              <motion.div
-                key={index}
-                className="flex flex-col md:flex-row items-start gap-6"
-                {...fadeInUp}
-                transition={{ delay: index * 0.1 }}
-              >
-                <div className="flex-shrink-0 w-16 h-16 rounded-full bg-white/10 flex items-center justify-center">
-                  <span className="text-2xl font-bold text-white/60">
-                    {step.number}
-                  </span>
-                </div>
-                <div className="flex-1">
-                  <h3 className="text-2xl font-semibold mb-2">{step.title}</h3>
-                  <p className="text-gray-400 text-lg">{step.description}</p>
-                </div>
-              </motion.div>
-        ))}
-      </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Step 1 */}
+            <motion.div
+              className="relative rounded-2xl overflow-hidden backdrop-blur-sm border border-white/5 group"
+              style={{ background: "rgba(15, 12, 10, 0.35)" }}
+              {...fadeInUp}
+            >
+              <div
+                className="h-48 opacity-55 group-hover:opacity-70 transition-opacity duration-500"
+                style={{
+                  backgroundImage: "url('/r10.png')",
+                  backgroundSize: "cover",
+                  backgroundPosition: "center",
+                  filter: "saturate(0.8)",
+                }}
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/20" />
+              <div className="absolute top-4 left-4">
+                <span className="text-5xl font-serif text-white/15">01</span>
+              </div>
+              <div className="p-6 relative">
+                <h3 className="text-xl font-semibold mb-2 font-serif text-white">Choose a Location</h3>
+                <p className="text-white/50 font-serif italic">Search any address. We load the 3D terrain and structures automatically.</p>
+              </div>
+            </motion.div>
+
+            {/* Step 2 */}
+            <motion.div
+              className="relative rounded-2xl overflow-hidden backdrop-blur-sm border border-white/5 group"
+              style={{ background: "rgba(15, 12, 10, 0.35)" }}
+              {...fadeInUp}
+              transition={{ delay: 0.1 }}
+            >
+              <div
+                className="h-48 opacity-55 group-hover:opacity-70 transition-opacity duration-500"
+                style={{
+                  backgroundImage: "url('/r12.png')",
+                  backgroundSize: "cover",
+                  backgroundPosition: "center",
+                  filter: "saturate(0.8)",
+                }}
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/20" />
+              <div className="absolute top-4 left-4">
+                <span className="text-5xl font-serif text-white/15">02</span>
+              </div>
+              <div className="p-6 relative">
+                <h3 className="text-xl font-semibold mb-2 font-serif text-white">Generate & Import</h3>
+                <p className="text-white/50 font-serif italic">Create 3D models with text prompts or import your own assets.</p>
+              </div>
+            </motion.div>
+
+            {/* Step 3 */}
+            <motion.div
+              className="relative rounded-2xl overflow-hidden backdrop-blur-sm border border-white/5 group"
+              style={{ background: "rgba(15, 12, 10, 0.35)" }}
+              {...fadeInUp}
+              transition={{ delay: 0.2 }}
+            >
+              <div
+                className="h-48 opacity-55 group-hover:opacity-70 transition-opacity duration-500"
+                style={{
+                  backgroundImage: "url('/r1.png')",
+                  backgroundSize: "cover",
+                  backgroundPosition: "center",
+                  filter: "saturate(0.8)",
+                }}
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/20" />
+              <div className="absolute top-4 left-4">
+                <span className="text-5xl font-serif text-white/15">03</span>
+              </div>
+              <div className="p-6 relative">
+                <h3 className="text-xl font-semibold mb-2 font-serif text-white">Design Your Vision</h3>
+                <p className="text-white/50 font-serif italic">Delete existing buildings and replace them with your creations.</p>
+              </div>
+            </motion.div>
+          </div>
         </div>
       </section>
 
       {/* CTA Section */}
       <section className="relative z-10 py-24 px-6">
-        <motion.div className="max-w-5xl mx-auto text-center" {...fadeInUp}>
+        {/* Blending layer */}
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background: "radial-gradient(ellipse at center, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.5) 70%, rgba(0,0,0,0.7) 100%)",
+          }}
+        />
+        <motion.div className="max-w-5xl mx-auto text-center relative" {...fadeInUp}>
           <h2 className="text-3xl sm:text-4xl md:text-5xl font-semibold mb-6 font-serif">
             Ready to reshape the world?
           </h2>
@@ -415,7 +475,7 @@ export default function Home() {
             className="bg-white hover:bg-white/90 text-black font-semibold px-8 py-6 rounded-full"
             onClick={handleMapNavigation}
           >
-            Get Started Free
+            Try it
             <ArrowRight className="w-5 h-5 ml-2" />
           </Button>
         </motion.div>

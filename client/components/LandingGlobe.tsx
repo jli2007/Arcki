@@ -102,9 +102,9 @@ export default function LandingGlobe() {
 
     // Load textures
     const textureLoader = new THREE.TextureLoader();
-    const bumpTexture = textureLoader.load("/01_earthbump1k.jpg");
-    const specTexture = textureLoader.load("/02_earthspec1k.jpg");
-    const rainbowTexture = textureLoader.load("/04_rainbow1k.jpg");
+    const bumpTexture = textureLoader.load("/texture1.jpg");
+    const specTexture = textureLoader.load("/texture2.jpg");
+    const rainbowTexture = textureLoader.load("/texture3.jpg");
 
     // Globe group for rotation - shifted down to show whole globe
     const globeGroup = new THREE.Group();
