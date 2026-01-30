@@ -5,22 +5,14 @@ import {
   ArrowLeftIcon,
   ArrowRightIcon,
   Cross2Icon,
-  CursorArrowIcon,
-  TrashIcon,
-  CubeIcon,
-  MagicWandIcon,
-  MagnifyingGlassIcon,
-  MixerVerticalIcon,
-  SunIcon,
-  RocketIcon
 } from "@radix-ui/react-icons";
+import Image from "next/image";
 
 interface TutorialStep {
   id: string;
   title: string;
   description: string;
-  icon: React.ReactNode;
-  accent: string;
+  image: string;
   target?: string;
   position?: "top" | "bottom" | "left" | "right" | "center";
 }
@@ -35,16 +27,14 @@ const TUTORIAL_STEPS: TutorialStep[] = [
     id: "welcome",
     title: "Welcome",
     description: "Let's get you started with the essentials.",
-    icon: <RocketIcon width={24} height={24} />,
-    accent: "from-violet-500 to-fuchsia-500",
+    image: "/welcome.png",
     position: "center",
   },
   {
     id: "toolbar-select",
     title: "Select",
     description: "Click any building to inspect its properties.",
-    icon: <CursorArrowIcon width={24} height={24} />,
-    accent: "from-blue-500 to-cyan-500",
+    image: "/select.png",
     target: '[data-tutorial="toolbar-select"]',
     position: "bottom",
   },
@@ -52,8 +42,7 @@ const TUTORIAL_STEPS: TutorialStep[] = [
     id: "toolbar-delete",
     title: "Delete",
     description: "Draw around buildings to remove them.",
-    icon: <TrashIcon width={24} height={24} />,
-    accent: "from-red-500 to-orange-500",
+    image: "/delete.png",
     target: '[data-tutorial="toolbar-delete"]',
     position: "bottom",
   },
@@ -61,8 +50,7 @@ const TUTORIAL_STEPS: TutorialStep[] = [
     id: "toolbar-insert",
     title: "Insert",
     description: "Add models from the library or upload your own.",
-    icon: <CubeIcon width={24} height={24} />,
-    accent: "from-emerald-500 to-teal-500",
+    image: "/insert.png",
     target: '[data-tutorial="toolbar-insert"]',
     position: "bottom",
   },
@@ -70,8 +58,7 @@ const TUTORIAL_STEPS: TutorialStep[] = [
     id: "toolbar-generate",
     title: "Generate",
     description: "Describe anything. AI builds it for you.",
-    icon: <MagicWandIcon width={24} height={24} />,
-    accent: "from-purple-500 to-pink-500",
+    image: "/generate.png",
     target: '[data-tutorial="toolbar-generate"]',
     position: "bottom",
   },
@@ -79,8 +66,7 @@ const TUTORIAL_STEPS: TutorialStep[] = [
     id: "search-bar",
     title: "Search",
     description: "Find places or use natural language commands.",
-    icon: <MagnifyingGlassIcon width={24} height={24} />,
-    accent: "from-amber-500 to-yellow-500",
+    image: "/search.png",
     target: '[data-tutorial="search-bar"]',
     position: "top",
   },
@@ -88,8 +74,7 @@ const TUTORIAL_STEPS: TutorialStep[] = [
     id: "map-controls",
     title: "Controls",
     description: "Zoom, rotate, and toggle 2D/3D views.",
-    icon: <MixerVerticalIcon width={24} height={24} />,
-    accent: "from-sky-500 to-blue-500",
+    image: "/controls.png",
     target: '[data-tutorial="map-controls"]',
     position: "left",
   },
@@ -97,8 +82,7 @@ const TUTORIAL_STEPS: TutorialStep[] = [
     id: "weather-panel",
     title: "Environment",
     description: "Set the time of day and weather.",
-    icon: <SunIcon width={24} height={24} />,
-    accent: "from-orange-500 to-amber-500",
+    image: "/environment.png",
     target: '[data-tutorial="weather-panel"]',
     position: "right",
   },
@@ -106,8 +90,7 @@ const TUTORIAL_STEPS: TutorialStep[] = [
     id: "complete",
     title: "Ready",
     description: "Go build something incredible.",
-    icon: <RocketIcon width={24} height={24} />,
-    accent: "from-green-500 to-emerald-500",
+    image: "/ready.png",
     position: "center",
   },
 ];
@@ -194,7 +177,7 @@ export function Tutorial({ onComplete, onSkip }: TutorialProps) {
 
     const padding = 24;
     const tooltipWidth = 360;
-    const tooltipHeight = 240;
+    const tooltipHeight = 280;
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
 
@@ -284,7 +267,7 @@ export function Tutorial({ onComplete, onSkip }: TutorialProps) {
         } : undefined}
       />
 
-      {/* Animated highlight ring */}
+      {/* Highlight ring around target element */}
       {highlightRect && (
         <div
           className="fixed z-[9999] pointer-events-none rounded-2xl transition-all duration-500"
@@ -295,20 +278,8 @@ export function Tutorial({ onComplete, onSkip }: TutorialProps) {
             height: highlightRect.height + 24,
           }}
         >
-          {/* Gradient border */}
-          <div
-            className={`absolute inset-0 rounded-2xl bg-gradient-to-r ${step.accent} opacity-60`}
-            style={{
-              padding: "2px",
-              WebkitMask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
-              WebkitMaskComposite: "xor",
-              maskComposite: "exclude",
-            }}
-          />
-          {/* Glow */}
-          <div
-            className={`absolute inset-0 rounded-2xl bg-gradient-to-r ${step.accent} opacity-20 blur-xl`}
-          />
+          <div className="absolute inset-0 rounded-2xl border border-white/50" />
+          <div className="absolute inset-0 rounded-2xl border border-white/15 blur-lg" />
         </div>
       )}
 
@@ -317,73 +288,76 @@ export function Tutorial({ onComplete, onSkip }: TutorialProps) {
         className="fixed z-[10000] w-[360px] pointer-events-auto transition-all duration-500"
         style={tooltipStyle}
       >
-        {/* Card with gradient border */}
-        <div className="relative rounded-2xl overflow-hidden">
-          {/* Gradient border effect */}
-          <div className={`absolute inset-0 bg-gradient-to-br ${step.accent} opacity-50`} />
+        <div
+          className="relative rounded-2xl overflow-hidden backdrop-blur-xl border border-white/10"
+          style={{ background: "rgba(15, 12, 10, 0.88)" }}
+        >
+          {/* Close button */}
+          <button
+            onClick={handleSkip}
+            className="absolute top-4 right-4 z-10 p-2 rounded-lg text-white/30 hover:text-white hover:bg-white/10 transition-all"
+          >
+            <Cross2Icon width={16} height={16} />
+          </button>
 
-          {/* Inner card */}
-          <div className="relative m-[1px] rounded-2xl bg-black/95 backdrop-blur-xl overflow-hidden">
-            {/* Top accent line */}
-            <div className={`h-1 w-full bg-gradient-to-r ${step.accent}`} />
+          {/* Step icon image */}
+          <div className="flex justify-center pt-7 pb-1">
+            <div
+              className="w-[88px] h-[88px] rounded-xl overflow-hidden"
+              style={{ filter: "saturate(0.85)" }}
+            >
+              <Image
+                src={step.image}
+                alt={step.title}
+                width={88}
+                height={88}
+                className="object-cover w-full h-full"
+              />
+            </div>
+          </div>
 
-            {/* Content */}
-            <div className="p-6">
-              {/* Icon and title row */}
-              <div className="flex items-start gap-4 mb-4">
-                <div className={`flex-shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br ${step.accent} flex items-center justify-center text-white shadow-lg`}>
-                  {step.icon}
+          {/* Content */}
+          <div className="px-6 pb-6 text-center">
+            <h3 className="text-white font-semibold text-2xl tracking-tight font-serif italic mb-1.5">
+              {step.title}
+            </h3>
+            <p className="text-white/50 text-sm leading-relaxed mb-6">
+              {step.description}
+            </p>
+
+            {/* Progress bar */}
+            <div className="mb-5">
+              <div className="flex items-center gap-2">
+                <div className="flex-1 h-[2px] bg-white/10 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-white/40 transition-all duration-500 rounded-full"
+                    style={{ width: `${((currentStep + 1) / TUTORIAL_STEPS.length) * 100}%` }}
+                  />
                 </div>
-                <div className="flex-1 pt-1">
-                  <h3 className="text-white font-bold text-2xl tracking-tight font-serif italic">{step.title}</h3>
-                </div>
-                <button
-                  onClick={handleSkip}
-                  className="flex-shrink-0 p-2 -mt-1 -mr-2 rounded-lg text-white/30 hover:text-white hover:bg-white/10 transition-all"
-                >
-                  <Cross2Icon width={16} height={16} />
-                </button>
+                <span className="text-white/30 text-xs font-medium tabular-nums">
+                  {currentStep + 1}/{TUTORIAL_STEPS.length}
+                </span>
               </div>
+            </div>
 
-              {/* Description */}
-              <p className="text-white/60 text-sm leading-relaxed mb-6 pl-16">
-                {step.description}
-              </p>
+            {/* Navigation buttons */}
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handlePrevious}
+                disabled={isFirstStep}
+                className="flex-1 flex items-center justify-center gap-2 h-11 rounded-xl bg-white/5 border border-white/10 text-white/40 hover:text-white hover:bg-white/10 hover:border-white/20 transition-all disabled:opacity-20 disabled:cursor-not-allowed text-sm font-medium"
+              >
+                <ArrowLeftIcon width={14} height={14} />
+                Back
+              </button>
 
-              {/* Progress bar */}
-              <div className="mb-5">
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 h-1 bg-white/10 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full bg-gradient-to-r ${step.accent} transition-all duration-500 rounded-full`}
-                      style={{ width: `${((currentStep + 1) / TUTORIAL_STEPS.length) * 100}%` }}
-                    />
-                  </div>
-                  <span className="text-white/40 text-xs font-medium tabular-nums">
-                    {currentStep + 1}/{TUTORIAL_STEPS.length}
-                  </span>
-                </div>
-              </div>
-
-              {/* Navigation */}
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={handlePrevious}
-                  disabled={isFirstStep}
-                  className="flex-1 flex items-center justify-center gap-2 h-12 rounded-xl bg-white/5 border border-white/10 text-white/40 hover:text-white hover:bg-white/10 hover:border-white/20 transition-all disabled:opacity-20 disabled:cursor-not-allowed text-sm font-medium"
-                >
-                  <ArrowLeftIcon width={14} height={14} />
-                  Back
-                </button>
-
-                <button
-                  onClick={handleNext}
-                  className={`flex-1 flex items-center justify-center gap-2 h-12 rounded-xl bg-gradient-to-r ${step.accent} text-white hover:opacity-90 transition-all text-sm font-semibold shadow-lg`}
-                >
-                  {isLastStep ? "Let's Go" : "Next"}
-                  <ArrowRightIcon width={14} height={14} />
-                </button>
-              </div>
+              <button
+                onClick={handleNext}
+                className="flex-1 flex items-center justify-center gap-2 h-11 rounded-xl bg-white hover:bg-white/90 text-black transition-all text-sm font-semibold"
+              >
+                {isLastStep ? "Let's Go" : "Next"}
+                <ArrowRightIcon width={14} height={14} />
+              </button>
             </div>
           </div>
         </div>
