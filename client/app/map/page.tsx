@@ -777,6 +777,29 @@ export default function MapPage() {
     });
   }, [updateModelsSource]);
 
+  // Catch Mapbox GL internal render errors (e.g. corrupt model textures)
+  // These throw synchronous TypeErrors in the render loop, not map error events
+  useEffect(() => {
+    const handleWindowError = (e: ErrorEvent) => {
+      const msg = e.message || "";
+      if (msg.includes("reading 'width'") && e.filename?.includes("mapbox")) {
+        e.preventDefault();
+        if (insertedModelsRef.current.length > 0) {
+          console.error("Mapbox model render error — removing last model:", msg);
+          setInsertedModels(prev => {
+            const updated = prev.slice(0, -1);
+            updateModelsSource(updated);
+            return updated;
+          });
+          alert("Failed to render 3D model. The file may be corrupted — try generating again.");
+        }
+      }
+    };
+
+    window.addEventListener("error", handleWindowError);
+    return () => window.removeEventListener("error", handleWindowError);
+  }, [updateModelsSource]);
+
   // Keyboard shortcut for deleting selected model
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -1318,7 +1341,7 @@ export default function MapPage() {
           // Model Loading failure catch - only trigger if user has inserted models
           map.current.on("error", (e) => {
             const errorMsg = e.error?.message || "";
-            if (errorMsg.includes("meshes is not iterable") || errorMsg.includes("t1.json")) {
+            if (errorMsg.includes("meshes is not iterable") || errorMsg.includes("t1.json") || errorMsg.includes("reading 'width'")) {
               // Only show alert if user actually has inserted models
               if (insertedModelsRef.current.length === 0) return;
 

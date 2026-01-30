@@ -124,10 +124,10 @@ export function InsertModelModal({ onClose, onPlaceModel }: InsertModelModalProp
 
       if (insertError) throw insertError;
 
-      // Place on map
+      // Place on map using the Supabase public URL (not blob URL)
       onPlaceModel({
         file: selectedFile,
-        url: fileUrl,
+        url: publicUrl,
         scale: 25,
         rotationX: 0,
         rotationY: 0,
@@ -150,24 +150,19 @@ export function InsertModelModal({ onClose, onPlaceModel }: InsertModelModalProp
     }
   };
 
-  const handleSelectLibraryModel = async (model: LibraryModel) => {
-    try {
-      const response = await fetch(model.glb_url);
-      const blob = await response.blob();
-      const file = new File([blob], `${model.name}.glb`, { type: "model/gltf-binary" });
-      const url = URL.createObjectURL(blob);
+  const handleSelectLibraryModel = (model: LibraryModel) => {
+    // Pass the Supabase public URL directly — no need to fetch + blob
+    // Mapbox GL loads models in a worker that can't access blob URLs
+    const file = new File([], `${model.name}.glb`, { type: "model/gltf-binary" });
 
-      onPlaceModel({
-        file,
-        url,
-        scale: 25,
-        rotationX: 0,
-        rotationY: 0,
-        rotationZ: 0,
-      });
-    } catch (error) {
-      console.error("Failed to load library model:", error);
-    }
+    onPlaceModel({
+      file,
+      url: model.glb_url,
+      scale: 25,
+      rotationX: 0,
+      rotationY: 0,
+      rotationZ: 0,
+    });
   };
 
   const filteredModels = libraryModels.filter(model =>

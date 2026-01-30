@@ -302,18 +302,21 @@ export function Prompt3DGenerator({ isVisible, onClose, onRequestExpand, onPlace
 
       const blob = await response.blob();
       const file = new File([blob], modelFile || "model.glb", { type: "model/gltf-binary" });
-      const url = URL.createObjectURL(blob);
 
-      // Upload to Supabase library in background
+      // Upload to Supabase first so we can use the public URL for Mapbox, loaded by worker
+      let modelUrl = URL.createObjectURL(blob);
       if (previewResult && threeDJob) {
-        uploadToLibrary(file, previewResult, threeDJob).catch(err => {
+        try {
+          const publicUrl = await uploadToLibrary(file, previewResult, threeDJob);
+          if (publicUrl) modelUrl = publicUrl;
+        } catch (err) {
           console.error('Failed to upload generated model to library:', err);
-        });
+        }
       }
 
       onPlaceModel({
         file,
-        url,
+        url: modelUrl,
         scale: 50,
         rotationX: 0,
         rotationY: 0,
@@ -337,7 +340,7 @@ export function Prompt3DGenerator({ isVisible, onClose, onRequestExpand, onPlace
     }
   };
 
-  const uploadToLibrary = async (file: File, preview: PreviewResult, _job: ThreeDJobResult) => {
+  const uploadToLibrary = async (file: File, preview: PreviewResult, _job: ThreeDJobResult): Promise<string | null> => {
     try {
       const timestamp = Date.now();
       const glbFilename = `${timestamp}-generated.glb`;
@@ -394,6 +397,7 @@ export function Prompt3DGenerator({ isVisible, onClose, onRequestExpand, onPlace
 
       if (insertError) throw insertError;
       console.log('Successfully uploaded generated model to library');
+      return glbUrl;
     } catch (error) {
       throw error;
     }
@@ -432,7 +436,6 @@ export function Prompt3DGenerator({ isVisible, onClose, onRequestExpand, onPlace
         className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-8"
         onClick={() => setIsExpandedView(false)}
       >
-        {/* Close Button - Fixed Position */}
         <button
           onClick={() => setIsExpandedView(false)}
           className="absolute top-4 right-4 z-10 p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition-all"
@@ -440,7 +443,6 @@ export function Prompt3DGenerator({ isVisible, onClose, onRequestExpand, onPlace
           <Cross2Icon width={20} height={20} />
         </button>
         
-        {/* Navigation Arrows - Fixed Position */}
         {previewResult.image_urls.length > 1 && (
           <>
             <button
@@ -458,7 +460,6 @@ export function Prompt3DGenerator({ isVisible, onClose, onRequestExpand, onPlace
           </>
         )}
         
-        {/* Center Content Container */}
         <div 
           className="flex flex-col items-center justify-center w-full h-full"
           onClick={(e) => e.stopPropagation()}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import dynamic from "next/dynamic";
@@ -37,6 +37,11 @@ export default function Home() {
   const router = useRouter();
   const isMobile = useMobileCheck();
   const [showMobileWarning, setShowMobileWarning] = useState(false);
+
+  // Prefetch /map route so JS bundle downloads while user is on landing
+  useEffect(() => {
+    router.prefetch("/map");
+  }, [router]);
 
   const handleMapNavigation = () => {
     if (isMobile) {
