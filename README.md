@@ -29,6 +29,12 @@ NEXT_PUBLIC_MAPBOX_TOKEN=
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 NEXT_PUBLIC_API_URL=http://localhost:8000
+
+# GitHub OAuth - for auto-star on icon click (optional)
+# Create at https://github.com/settings/developers
+# Callback URL: http://localhost:3000/api/auth/github/callback
+GITHUB_CLIENT_ID=
+GITHUB_CLIENT_SECRET=
 ```
 
 `server/.env`

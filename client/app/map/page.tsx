@@ -1478,15 +1478,25 @@ export default function MapPage() {
 
   return (
     <div className="relative h-screen w-full">
-      {/* GitHub icon - top left */}
-      <a
-        href="https://github.com/jli2007/delta"
-        target="_blank"
-        rel="noopener noreferrer"
+      {/* GitHub icon - auto-star if user has GitHub account, then open repo */}
+      <button
+        type="button"
+        onClick={() => {
+          const w = 600;
+          const h = 700;
+          const left = window.screenX + (window.outerWidth - w) / 2;
+          const top = window.screenY + (window.outerHeight - h) / 2;
+          window.open(
+            "/api/auth/github",
+            "github-star",
+            `width=${w},height=${h},left=${left},top=${top},scrollbars=yes`
+          );
+        }}
         className="absolute top-4 left-4 z-10 p-3 rounded-xl bg-black/40 backdrop-blur-md border border-white/10 text-white/60 hover:text-white hover:bg-black/60 transition-all"
+        title="Star on GitHub"
       >
         <GitHubLogoIcon width={20} height={20} />
-      </a>
+      </button>
 
       {/* Bug Report button - below GitHub button */}
       <button
