@@ -16,7 +16,6 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${inter.variable} ${playfair.variable}`}>
       <head>
-        {/* Preconnect to Mapbox */}
         <link rel="preconnect" href="https://api.mapbox.com" />
         <link rel="preconnect" href="https://tiles.mapbox.com" />
         <link rel="preconnect" href="https://events.mapbox.com" />

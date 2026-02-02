@@ -1,6 +1,11 @@
 "use client";
 
-import { CursorArrowIcon, Pencil2Icon, CubeIcon, MagicWandIcon } from "@radix-ui/react-icons";
+import {
+  CursorArrowIcon,
+  Pencil2Icon,
+  CubeIcon,
+  MagicWandIcon,
+} from "@radix-ui/react-icons";
 import * as Tooltip from "@radix-ui/react-tooltip";
 
 type ToolType = "select" | "draw" | "insert" | null;
@@ -12,9 +17,12 @@ interface ToolbarProps {
   onTogglePromptGenerator: () => void;
 }
 
-export function Toolbar({ activeTool, setActiveTool, showPromptGenerator, onTogglePromptGenerator }: ToolbarProps) {
-
-  // Handle tool selection - all tools are mutually exclusive
+export function Toolbar({
+  activeTool,
+  setActiveTool,
+  showPromptGenerator,
+  onTogglePromptGenerator,
+}: ToolbarProps) {
   const handleToolSelect = (tool: ToolType) => {
     if (showPromptGenerator) onTogglePromptGenerator();
     setActiveTool(activeTool === tool ? null : tool);
@@ -41,7 +49,9 @@ export function Toolbar({ activeTool, setActiveTool, showPromptGenerator, onTogg
                 }`}
               >
                 <CursorArrowIcon width={20} height={20} />
-                <span className="text-xs font-medium font-serif italic">Select</span>
+                <span className="text-xs font-medium font-serif italic">
+                  Select
+                </span>
               </button>
             </Tooltip.Trigger>
             <Tooltip.Content
@@ -66,7 +76,9 @@ export function Toolbar({ activeTool, setActiveTool, showPromptGenerator, onTogg
                 }`}
               >
                 <Pencil2Icon width={20} height={20} />
-                <span className="text-xs font-medium font-serif italic">Delete</span>
+                <span className="text-xs font-medium font-serif italic">
+                  Delete
+                </span>
               </button>
             </Tooltip.Trigger>
             <Tooltip.Content
@@ -91,7 +103,9 @@ export function Toolbar({ activeTool, setActiveTool, showPromptGenerator, onTogg
                 }`}
               >
                 <CubeIcon width={20} height={20} />
-                <span className="text-xs font-medium font-serif italic">Insert</span>
+                <span className="text-xs font-medium font-serif italic">
+                  Insert
+                </span>
               </button>
             </Tooltip.Trigger>
             <Tooltip.Content
@@ -116,7 +130,9 @@ export function Toolbar({ activeTool, setActiveTool, showPromptGenerator, onTogg
                 }`}
               >
                 <MagicWandIcon width={20} height={20} />
-                <span className="text-xs font-medium font-serif italic">Generate</span>
+                <span className="text-xs font-medium font-serif italic">
+                  Generate
+                </span>
               </button>
             </Tooltip.Trigger>
             <Tooltip.Content

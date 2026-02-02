@@ -36,7 +36,6 @@ export function SearchBar({
     setTimeout(() => onSearch(), 100);
   };
 
-  // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
@@ -51,13 +50,13 @@ export function SearchBar({
 
     if (showDropdown) {
       document.addEventListener("mousedown", handleClickOutside);
-      return () => document.removeEventListener("mousedown", handleClickOutside);
+      return () =>
+        document.removeEventListener("mousedown", handleClickOutside);
     }
   }, [showDropdown]);
 
   return (
     <div className="relative w-full">
-      {/* Search Input */}
       <div className="relative flex items-center gap-2">
         <div className="relative flex-1">
           <div className="absolute left-3 top-1/2 -translate-y-1/2 z-10 pointer-events-none">
@@ -67,7 +66,12 @@ export function SearchBar({
               stroke="currentColor"
               viewBox="0 0 24 24"
             >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+              />
             </svg>
           </div>
           <input
@@ -87,7 +91,6 @@ export function SearchBar({
           )}
         </div>
 
-        {/* Dropdown Toggle Button */}
         {quickPrompts.length > 0 && (
           <div className="relative" ref={dropdownRef}>
             <button
@@ -95,20 +98,26 @@ export function SearchBar({
               className="px-3.5 py-3.5 bg-white/5 hover:bg-white/10 text-white/70 hover:text-white rounded-xl border border-white/10 transition-all duration-200 flex items-center justify-center"
               disabled={isLoading}
             >
-              <svg 
-                className={`w-5 h-5 transition-transform duration-200 ${showDropdown ? 'rotate-180' : ''}`}
-                fill="none" 
-                stroke="currentColor" 
+              <svg
+                className={`w-5 h-5 transition-transform duration-200 ${showDropdown ? "rotate-180" : ""}`}
+                fill="none"
+                stroke="currentColor"
                 viewBox="0 0 24 24"
               >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M19 9l-7 7-7-7"
+                />
               </svg>
             </button>
 
-            {/* Dropdown Menu */}
             {showDropdown && (
               <div className="absolute top-full right-0 mt-2 bg-black/40 backdrop-blur-md rounded-xl border border-white/10 shadow-xl p-3 z-30 min-w-70 animate-[fadeIn_0.2s_ease-out_forwards]">
-                <div className="text-xs text-white/60 mb-2.5 px-1 font-medium tracking-wide uppercase">Quick prompts</div>
+                <div className="text-xs text-white/60 mb-2.5 px-1 font-medium tracking-wide uppercase">
+                  Quick prompts
+                </div>
                 <div className="flex flex-col gap-2">
                   {quickPrompts.map((prompt, idx) => (
                     <button

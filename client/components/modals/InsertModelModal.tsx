@@ -1,7 +1,12 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Cross2Icon, UploadIcon, CubeIcon, MagnifyingGlassIcon } from "@radix-ui/react-icons";
+import {
+  Cross2Icon,
+  UploadIcon,
+  CubeIcon,
+  MagnifyingGlassIcon,
+} from "@radix-ui/react-icons";
 import { supabase } from "@/lib/supabase";
 import { ModelThumbnail } from "../ModelThumbnail";
 
@@ -27,7 +32,10 @@ interface InsertModelModalProps {
   onPlaceModel: (model: PendingModel) => void;
 }
 
-export function InsertModelModal({ onClose, onPlaceModel }: InsertModelModalProps) {
+export function InsertModelModal({
+  onClose,
+  onPlaceModel,
+}: InsertModelModalProps) {
   const [activeTab, setActiveTab] = useState<"upload" | "library">("library");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fileUrl, setFileUrl] = useState<string | null>(null);
@@ -53,9 +61,9 @@ export function InsertModelModal({ onClose, onPlaceModel }: InsertModelModalProp
       setIsLoadingLibrary(true);
       try {
         const { data, error } = await supabase
-          .from('models')
-          .select('*')
-          .order('created_at', { ascending: false });
+          .from("models")
+          .select("*")
+          .order("created_at", { ascending: false });
 
         if (error) throw error;
         setLibraryModels(data || []);
@@ -94,37 +102,33 @@ export function InsertModelModal({ onClose, onPlaceModel }: InsertModelModalProp
     setIsUploading(true);
     try {
       const timestamp = Date.now();
-      const filename = `${timestamp}-${selectedFile.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+      const filename = `${timestamp}-${selectedFile.name.replace(/[^a-zA-Z0-9.-]/g, "_")}`;
 
       // Upload GLB to storage
       const { error: uploadError } = await supabase.storage
-        .from('models')
+        .from("models")
         .upload(filename, selectedFile, {
-          contentType: 'model/gltf-binary',
-          cacheControl: '3600',
+          contentType: "model/gltf-binary",
+          cacheControl: "3600",
         });
 
       if (uploadError) throw uploadError;
 
-      // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('models')
-        .getPublicUrl(filename);
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from("models").getPublicUrl(filename);
 
-      // Insert metadata (no thumbnail - we use live 3D preview)
-      const { error: insertError } = await supabase
-        .from('models')
-        .insert({
-          name: selectedFile.name.replace('.glb', ''),
-          glb_url: publicUrl,
-          thumbnail_url: '', // Empty - we render live preview from glb_url
-          category: 'User Upload',
-          file_size: selectedFile.size,
-        });
+      const { error: insertError } = await supabase.from("models").insert({
+        name: selectedFile.name.replace(".glb", ""),
+        glb_url: publicUrl,
+        thumbnail_url: "",
+        category: "User Upload",
+        file_size: selectedFile.size,
+      });
 
       if (insertError) throw insertError;
 
-      // Place on map using the Supabase public URL (not blob URL)
+      // Place on map using the Supabase public URL
       onPlaceModel({
         file: selectedFile,
         url: publicUrl,
@@ -134,8 +138,8 @@ export function InsertModelModal({ onClose, onPlaceModel }: InsertModelModalProp
         rotationZ: 0,
       });
     } catch (error) {
-      console.error('Failed to upload:', error);
-      alert('Failed to upload to library. Model will still be placed.');
+      console.error("Failed to upload:", error);
+      alert("Failed to upload to library. Model will still be placed.");
 
       onPlaceModel({
         file: selectedFile,
@@ -151,9 +155,10 @@ export function InsertModelModal({ onClose, onPlaceModel }: InsertModelModalProp
   };
 
   const handleSelectLibraryModel = (model: LibraryModel) => {
-    // Pass the Supabase public URL directly — no need to fetch + blob
-    // Mapbox GL loads models in a worker that can't access blob URLs
-    const file = new File([], `${model.name}.glb`, { type: "model/gltf-binary" });
+    // Pass the Supabase public URL directly: Mapbox GL loads models in a worker that can't access blob URLs
+    const file = new File([], `${model.name}.glb`, {
+      type: "model/gltf-binary",
+    });
 
     onPlaceModel({
       file,
@@ -165,8 +170,8 @@ export function InsertModelModal({ onClose, onPlaceModel }: InsertModelModalProp
     });
   };
 
-  const filteredModels = libraryModels.filter(model =>
-    model.name.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredModels = libraryModels.filter((model) =>
+    model.name.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
   return (
@@ -175,11 +180,12 @@ export function InsertModelModal({ onClose, onPlaceModel }: InsertModelModalProp
       onClick={handleOverlayClick}
     >
       <div className="relative w-125 rounded-2xl bg-black/40 backdrop-blur-md border border-white/10 shadow-2xl overflow-hidden">
-        {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-white/10">
           <div className="flex items-center gap-3">
             <CubeIcon className="text-white/60" width={20} height={20} />
-            <h2 className="text-white font-semibold text-xl tracking-tight font-serif">Insert 3D Model</h2>
+            <h2 className="text-white font-semibold text-xl tracking-tight font-serif">
+              Insert 3D Model
+            </h2>
           </div>
           <button
             onClick={onClose}
@@ -189,7 +195,6 @@ export function InsertModelModal({ onClose, onPlaceModel }: InsertModelModalProp
           </button>
         </div>
 
-        {/* Tabs */}
         <div className="flex border-b border-white/10">
           <button
             onClick={() => setActiveTab("library")}
@@ -213,14 +218,15 @@ export function InsertModelModal({ onClose, onPlaceModel }: InsertModelModalProp
           </button>
         </div>
 
-        {/* Content - Both tabs stay mounted, only visibility changes */}
         <div className="max-h-[70vh] overflow-y-auto">
-          {/* Library Tab */}
           <div className={`p-4 ${activeTab === "library" ? "" : "hidden"}`}>
-            {/* Search */}
             <div className="mb-4">
               <div className="relative">
-                <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" width={16} height={16} />
+                <MagnifyingGlassIcon
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40"
+                  width={16}
+                  height={16}
+                />
                 <input
                   type="text"
                   placeholder="Search models..."
@@ -231,14 +237,17 @@ export function InsertModelModal({ onClose, onPlaceModel }: InsertModelModalProp
               </div>
             </div>
 
-            {/* Model List */}
             {isLoadingLibrary ? (
               <div className="flex items-center justify-center py-12">
                 <div className="text-white/40 text-sm">Loading models...</div>
               </div>
             ) : filteredModels.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12">
-                <CubeIcon className="text-white/20 mb-3" width={48} height={48} />
+                <CubeIcon
+                  className="text-white/20 mb-3"
+                  width={48}
+                  height={48}
+                />
                 <p className="text-white/40 text-sm">
                   {searchQuery ? "No models found" : "No models in library yet"}
                 </p>
@@ -251,30 +260,33 @@ export function InsertModelModal({ onClose, onPlaceModel }: InsertModelModalProp
                     onClick={() => handleSelectLibraryModel(model)}
                     className="group w-full flex items-center gap-3 p-3 rounded-lg border border-white/10 hover:border-white/30 bg-white/5 hover:bg-white/10 transition-all"
                   >
-                    {/* Live 3D Thumbnail */}
                     <div className="w-28 h-28 rounded-lg overflow-hidden bg-black/40 shrink-0">
                       <ModelThumbnail glbUrl={model.glb_url} size={112} />
                     </div>
 
-                    {/* Info */}
                     <div className="flex-1 text-left min-w-0">
-                      <p className="text-white text-sm font-medium truncate">{model.name}</p>
+                      <p className="text-white text-sm font-medium truncate">
+                        {model.name}
+                      </p>
                       {model.category && (
-                        <p className="text-white/50 text-xs mt-0.5">{model.category}</p>
+                        <p className="text-white/50 text-xs mt-0.5">
+                          {model.category}
+                        </p>
                       )}
                     </div>
 
-                    {/* Icon */}
-                    <CubeIcon className="text-white/40 group-hover:text-white/80 transition-colors shrink-0" width={18} height={18} />
+                    <CubeIcon
+                      className="text-white/40 group-hover:text-white/80 transition-colors shrink-0"
+                      width={18}
+                      height={18}
+                    />
                   </button>
                 ))}
               </div>
             )}
           </div>
 
-          {/* Upload Tab */}
           <div className={`p-4 ${activeTab === "upload" ? "" : "hidden"}`}>
-            {/* File upload area */}
             <input
               ref={fileInputRef}
               type="file"
@@ -288,12 +300,13 @@ export function InsertModelModal({ onClose, onPlaceModel }: InsertModelModalProp
             >
               {selectedFile && fileUrl ? (
                 <>
-                  {/* Show live preview of selected file */}
                   <div className="w-40 h-40 rounded-lg overflow-hidden">
                     <ModelThumbnail glbUrl={fileUrl} size={160} />
                   </div>
                   <div className="text-center">
-                    <p className="text-white font-medium">{selectedFile.name}</p>
+                    <p className="text-white font-medium">
+                      {selectedFile.name}
+                    </p>
                     <p className="text-white/50 text-sm mt-1">
                       {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
                     </p>
@@ -301,16 +314,21 @@ export function InsertModelModal({ onClose, onPlaceModel }: InsertModelModalProp
                 </>
               ) : (
                 <>
-                  <UploadIcon className="text-white/40" width={32} height={32} />
+                  <UploadIcon
+                    className="text-white/40"
+                    width={32}
+                    height={32}
+                  />
                   <div className="text-center">
                     <p className="text-white/70">Click to upload GLB file</p>
-                    <p className="text-white/40 text-sm mt-1">or drag and drop</p>
+                    <p className="text-white/40 text-sm mt-1">
+                      or drag and drop
+                    </p>
                   </div>
                 </>
               )}
             </button>
 
-            {/* Place button for upload tab */}
             {selectedFile && (
               <div className="mt-4 flex gap-3">
                 <button
@@ -325,7 +343,7 @@ export function InsertModelModal({ onClose, onPlaceModel }: InsertModelModalProp
                   disabled={isUploading}
                   className="flex-1 px-4 py-2.5 rounded-lg bg-white hover:bg-white/90 text-black transition-all text-sm font-medium disabled:opacity-50"
                 >
-                  {isUploading ? 'Uploading...' : 'Place Model'}
+                  {isUploading ? "Uploading..." : "Place Model"}
                 </button>
               </div>
             )}

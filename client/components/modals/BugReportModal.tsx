@@ -31,7 +31,6 @@ export function BugReportModal({ onClose }: BugReportModalProps) {
     setError(null);
 
     try {
-      // Use Next.js API route instead of Python backend
       const response = await fetch("/api/github", {
         method: "POST",
         headers: {
@@ -42,18 +41,23 @@ export function BugReportModal({ onClose }: BugReportModalProps) {
           body: comments.trim() || "No additional details provided.",
           labels: ["bug"],
         }),
-        redirect: "follow", // Follow redirects
+        redirect: "follow",
       });
 
       if (!response.ok) {
-        // Handle redirects
         if (response.status === 307 || response.status === 308) {
           const location = response.headers.get("Location");
-          throw new Error(`Redirect to ${location || "unknown location"}. The server may need to be restarted.`);
+          throw new Error(
+            `Redirect to ${location || "unknown location"}. The server may need to be restarted.`,
+          );
         }
-        
-        const errorData = await response.json().catch(() => ({ error: "Failed to submit bug report" }));
-        throw new Error(errorData.error || errorData.detail || `HTTP ${response.status}`);
+
+        const errorData = await response
+          .json()
+          .catch(() => ({ error: "Failed to submit bug report" }));
+        throw new Error(
+          errorData.error || errorData.detail || `HTTP ${response.status}`,
+        );
       }
 
       setSuccess(true);
@@ -65,7 +69,11 @@ export function BugReportModal({ onClose }: BugReportModalProps) {
       }, 2000);
     } catch (err) {
       console.error("Failed to submit bug report:", err);
-      setError(err instanceof Error ? err.message : "Failed to submit bug report. Please try again.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to submit bug report. Please try again.",
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -77,10 +85,13 @@ export function BugReportModal({ onClose }: BugReportModalProps) {
       onClick={handleOverlayClick}
     >
       <div className="relative w-125 rounded-2xl bg-black/40 backdrop-blur-md border border-white/10 shadow-2xl overflow-hidden">
-        {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-white/10">
           <div className="flex items-center gap-3">
-            <ExclamationTriangleIcon className="text-white/60" width={20} height={20} />
+            <ExclamationTriangleIcon
+              className="text-white/60"
+              width={20}
+              height={20}
+            />
             <h2 className="text-white font-semibold text-lg">Report a Bug</h2>
           </div>
           <button
@@ -91,9 +102,7 @@ export function BugReportModal({ onClose }: BugReportModalProps) {
           </button>
         </div>
 
-        {/* Content */}
         <form onSubmit={handleSubmit} className="p-4 space-y-4">
-          {/* Title */}
           <div>
             <label className="block text-white/70 text-sm font-medium mb-2">
               Title <span className="text-red-400">*</span>
@@ -109,7 +118,6 @@ export function BugReportModal({ onClose }: BugReportModalProps) {
             />
           </div>
 
-          {/* Comments */}
           <div>
             <label className="block text-white/70 text-sm font-medium mb-2">
               Details
@@ -124,7 +132,6 @@ export function BugReportModal({ onClose }: BugReportModalProps) {
             />
           </div>
 
-          {/* Error/Success messages */}
           {error && (
             <div className="p-3 rounded-lg bg-red-500/20 border border-red-500/50 text-red-200 text-sm">
               {error}
@@ -137,7 +144,6 @@ export function BugReportModal({ onClose }: BugReportModalProps) {
             </div>
           )}
 
-          {/* Actions */}
           <div className="flex gap-3 pt-2">
             <button
               type="button"
@@ -152,7 +158,11 @@ export function BugReportModal({ onClose }: BugReportModalProps) {
               disabled={isSubmitting || success || !title.trim()}
               className="flex-1 px-4 py-2.5 rounded-lg bg-white hover:bg-white/90 text-black transition-all text-sm font-medium disabled:opacity-50"
             >
-              {isSubmitting ? "Submitting..." : success ? "Submitted!" : "Submit Bug Report"}
+              {isSubmitting
+                ? "Submitting..."
+                : success
+                  ? "Submitted!"
+                  : "Submit Bug Report"}
             </button>
           </div>
         </form>

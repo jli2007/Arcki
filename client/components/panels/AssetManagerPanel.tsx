@@ -111,7 +111,6 @@ export function AssetManagerPanel({
 
   return (
     <div className="absolute bottom-8 left-4 z-10 w-80 rounded-2xl bg-black/40 backdrop-blur-md border border-white/10 shadow-xl overflow-hidden">
-      {/* Header */}
       <div className="flex items-center gap-2 p-3 border-b border-white/10">
         <CubeIcon className="text-white/60" width={16} height={16} />
         <h3 className="text-white font-medium text-sm font-serif italic tracking-wide">
@@ -120,7 +119,6 @@ export function AssetManagerPanel({
         <span className="text-white/40 text-xs">({models.length})</span>
       </div>
 
-      {/* Model list with fixed height and scroll */}
       <div className="max-h-64 overflow-y-auto">
         {models.length === 0 ? (
           <div className="p-3 text-center text-white/40 text-xs">
@@ -137,7 +135,6 @@ export function AssetManagerPanel({
                   <CubeIcon className="text-white" width={16} height={16} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  {/* Name row - editable */}
                   <div className="flex items-center gap-2">
                     {editingId === model.id && editingField === "name" ? (
                       <input
@@ -160,7 +157,6 @@ export function AssetManagerPanel({
                     )}
                   </div>
 
-                  {/* Scale row - prominent */}
                   <div className="flex items-center gap-2 mt-1">
                     <span className="text-white/50 text-xs">Scale:</span>
                     {editingId === model.id && editingField === "scale" ? (
@@ -185,7 +181,6 @@ export function AssetManagerPanel({
                     )}
                   </div>
 
-                  {/* Position row */}
                   <div className="flex items-center gap-1.5 text-white/40 text-xs mt-1">
                     <span className="text-white/30">Pos:</span>
                     {editingId === model.id && editingField === "positionX" ? (

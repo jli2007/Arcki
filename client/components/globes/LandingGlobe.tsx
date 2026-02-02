@@ -67,23 +67,23 @@ export default function LandingGlobe() {
 
   useEffect(() => {
     if (!mountRef.current) return;
+    const mountNode = mountRef.current;
 
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(
       45,
       window.innerWidth / window.innerHeight,
       0.1,
-      1000
+      1000,
     );
 
-    // Adjust camera distance based on screen width for mobile compatibility
     const getCameraZ = () => {
       const width = window.innerWidth;
-      if (width < 400) return 9.0;  // Small mobile - zoom out significantly
-      if (width < 480) return 8.0;  // Mobile
-      if (width < 768) return 7.0;  // Larger mobile/small tablet
-      if (width < 1024) return 5.5; // Tablet
-      return 4.5;                   // Desktop
+      if (width < 400) return 9.0;
+      if (width < 480) return 8.0;
+      if (width < 768) return 7.0;
+      if (width < 1024) return 5.5;
+      return 4.5;
     };
 
     camera.position.set(0, 0.3, getCameraZ());
@@ -93,20 +93,17 @@ export default function LandingGlobe() {
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setClearColor(0x000000, 1);
 
-    mountRef.current.appendChild(renderer.domElement);
+    mountNode.appendChild(renderer.domElement);
 
-    // Mouse tracking for drag rotation
     let isDragging = false;
     let previousMousePosition = { x: 0, y: 0 };
     const rotationSpeed = 0.005;
 
-    // Load textures
     const textureLoader = new THREE.TextureLoader();
     const bumpTexture = textureLoader.load("/texture1.jpg");
     const specTexture = textureLoader.load("/texture2.jpg");
     const rainbowTexture = textureLoader.load("/texture3.jpg");
 
-    // Globe group for rotation - shifted down to show whole globe
     const globeGroup = new THREE.Group();
     globeGroup.position.set(0, -0.4, 0);
     scene.add(globeGroup);
@@ -116,7 +113,6 @@ export default function LandingGlobe() {
     const radius = 1.3;
     const scale = 1.4;
 
-    // Create wireframe base (very transparent)
     const wireGeo = new THREE.IcosahedronGeometry(radius, 16);
     const wireMat = new THREE.MeshBasicMaterial({
       color: 0x3366ff,
@@ -128,7 +124,6 @@ export default function LandingGlobe() {
     wireMesh.scale.set(scale, scale, scale);
     globeGroup.add(wireMesh);
 
-    // Create points sphere with shader material
     const pointsGeo = new THREE.IcosahedronGeometry(radius, 120);
 
     const shaderMaterial = new THREE.ShaderMaterial({
@@ -149,7 +144,6 @@ export default function LandingGlobe() {
     globeGroup.add(pointsMesh);
 
     function animate() {
-      // Passive rotation when not dragging
       if (!isDragging) {
         globeGroup.rotation.y += 0.0012;
       }
@@ -160,7 +154,6 @@ export default function LandingGlobe() {
     animate();
 
     function onMouseMove(evt: MouseEvent) {
-      // Handle drag rotation
       if (isDragging) {
         const deltaX = evt.clientX - previousMousePosition.x;
         const deltaY = evt.clientY - previousMousePosition.y;
@@ -175,23 +168,25 @@ export default function LandingGlobe() {
     function onMouseDown(evt: MouseEvent) {
       isDragging = true;
       previousMousePosition = { x: evt.clientX, y: evt.clientY };
-      if (mountRef.current) {
-        mountRef.current.style.cursor = "grabbing";
+      if (mountNode) {
+        mountNode.style.cursor = "grabbing";
       }
     }
 
     function onMouseUp() {
       isDragging = false;
-      if (mountRef.current) {
-        mountRef.current.style.cursor = "grab";
+      if (mountNode) {
+        mountNode.style.cursor = "grab";
       }
     }
 
-    // Touch event handlers for mobile
     function onTouchStart(evt: TouchEvent) {
       if (evt.touches.length === 1) {
         isDragging = true;
-        previousMousePosition = { x: evt.touches[0].clientX, y: evt.touches[0].clientY };
+        previousMousePosition = {
+          x: evt.touches[0].clientX,
+          y: evt.touches[0].clientY,
+        };
       }
     }
 
@@ -203,7 +198,10 @@ export default function LandingGlobe() {
         globeGroup.rotation.y += deltaX * rotationSpeed;
         globeGroup.rotation.x += deltaY * rotationSpeed;
 
-        previousMousePosition = { x: evt.touches[0].clientX, y: evt.touches[0].clientY };
+        previousMousePosition = {
+          x: evt.touches[0].clientX,
+          y: evt.touches[0].clientY,
+        };
       }
     }
 
@@ -218,8 +216,8 @@ export default function LandingGlobe() {
       renderer.setSize(window.innerWidth, window.innerHeight);
     }
 
-    if (mountRef.current) {
-      mountRef.current.style.cursor = "grab";
+    if (mountNode) {
+      mountNode.style.cursor = "grab";
     }
 
     window.addEventListener("mousemove", onMouseMove);
@@ -239,10 +237,9 @@ export default function LandingGlobe() {
       window.removeEventListener("touchend", onTouchEnd);
       window.removeEventListener("resize", onResize);
 
-      const mount = mountRef.current;
-      if (mount && mount.contains(renderer.domElement)) {
-        mount.style.cursor = "default";
-        mount.removeChild(renderer.domElement);
+      if (mountNode.contains(renderer.domElement)) {
+        mountNode.style.cursor = "default";
+        mountNode.removeChild(renderer.domElement);
       }
       renderer.dispose();
     };

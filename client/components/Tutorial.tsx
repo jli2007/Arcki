@@ -164,7 +164,6 @@ export function Tutorial({ onComplete, onSkip }: TutorialProps) {
     onSkip();
   };
 
-  // Derive effective rect — null when step has no target (avoids sync setState in effect)
   const activeRect = step.target ? highlightRect : null;
 
   const getTooltipPosition = () => {
@@ -191,17 +190,23 @@ export function Tutorial({ onComplete, onSkip }: TutorialProps) {
         const spaceAbove = activeRect.top;
         if (spaceAbove < tooltipHeight + padding) {
           top = activeRect.bottom + padding;
-          left = Math.max(padding, Math.min(
-            activeRect.left + activeRect.width / 2,
-            viewportWidth - tooltipWidth / 2 - padding
-          ));
+          left = Math.max(
+            padding,
+            Math.min(
+              activeRect.left + activeRect.width / 2,
+              viewportWidth - tooltipWidth / 2 - padding,
+            ),
+          );
           transform = "translate(-50%, 0)";
         } else {
           top = activeRect.top - padding;
-          left = Math.max(tooltipWidth / 2 + padding, Math.min(
-            activeRect.left + activeRect.width / 2,
-            viewportWidth - tooltipWidth / 2 - padding
-          ));
+          left = Math.max(
+            tooltipWidth / 2 + padding,
+            Math.min(
+              activeRect.left + activeRect.width / 2,
+              viewportWidth - tooltipWidth / 2 - padding,
+            ),
+          );
           transform = "translate(-50%, -100%)";
         }
         break;
@@ -209,34 +214,49 @@ export function Tutorial({ onComplete, onSkip }: TutorialProps) {
         const spaceBelow = viewportHeight - activeRect.bottom;
         if (spaceBelow < tooltipHeight + padding) {
           top = activeRect.top - padding;
-          left = Math.max(padding, Math.min(
-            activeRect.left + activeRect.width / 2,
-            viewportWidth - tooltipWidth / 2 - padding
-          ));
+          left = Math.max(
+            padding,
+            Math.min(
+              activeRect.left + activeRect.width / 2,
+              viewportWidth - tooltipWidth / 2 - padding,
+            ),
+          );
           transform = "translate(-50%, -100%)";
         } else {
           top = activeRect.bottom + padding;
-          left = Math.max(tooltipWidth / 2 + padding, Math.min(
-            activeRect.left + activeRect.width / 2,
-            viewportWidth - tooltipWidth / 2 - padding
-          ));
+          left = Math.max(
+            tooltipWidth / 2 + padding,
+            Math.min(
+              activeRect.left + activeRect.width / 2,
+              viewportWidth - tooltipWidth / 2 - padding,
+            ),
+          );
           transform = "translate(-50%, 0)";
         }
         break;
       case "left":
-        top = Math.max(padding, Math.min(
-          activeRect.top + activeRect.height / 2,
-          viewportHeight - tooltipHeight / 2 - padding
-        ));
+        top = Math.max(
+          padding,
+          Math.min(
+            activeRect.top + activeRect.height / 2,
+            viewportHeight - tooltipHeight / 2 - padding,
+          ),
+        );
         left = Math.max(padding, activeRect.left - padding);
         transform = "translate(-100%, -50%)";
         break;
       case "right":
-        top = Math.max(padding, Math.min(
-          activeRect.top + activeRect.height / 2,
-          viewportHeight - tooltipHeight / 2 - padding
-        ));
-        left = Math.min(viewportWidth - tooltipWidth - padding, activeRect.right + padding);
+        top = Math.max(
+          padding,
+          Math.min(
+            activeRect.top + activeRect.height / 2,
+            viewportHeight - tooltipHeight / 2 - padding,
+          ),
+        );
+        left = Math.min(
+          viewportWidth - tooltipWidth - padding,
+          activeRect.right + padding,
+        );
         transform = "translate(0, -50%)";
         break;
     }
@@ -248,12 +268,13 @@ export function Tutorial({ onComplete, onSkip }: TutorialProps) {
 
   return (
     <>
-      {/* Dark overlay with cutout */}
       <div
         ref={overlayRef}
         className="fixed inset-0 z-9998 transition-all duration-500 pointer-events-none bg-black/60"
-        style={activeRect ? {
-          clipPath: `polygon(
+        style={
+          activeRect
+            ? {
+                clipPath: `polygon(
             0% 0%,
             0% 100%,
             ${activeRect.left - 12}px 100%,
@@ -265,10 +286,11 @@ export function Tutorial({ onComplete, onSkip }: TutorialProps) {
             100% 100%,
             100% 0%
           )`,
-        } : undefined}
+              }
+            : undefined
+        }
       />
 
-      {/* Highlight ring around target element */}
       {activeRect && (
         <div
           className="fixed z-9999 pointer-events-none rounded-2xl transition-all duration-500"
@@ -284,7 +306,6 @@ export function Tutorial({ onComplete, onSkip }: TutorialProps) {
         </div>
       )}
 
-      {/* Main card */}
       <div
         className="fixed z-10000 w-90 pointer-events-auto transition-all duration-500"
         style={tooltipStyle}
@@ -293,7 +314,6 @@ export function Tutorial({ onComplete, onSkip }: TutorialProps) {
           className="relative rounded-2xl overflow-hidden backdrop-blur-xl border border-white/10"
           style={{ background: "rgba(15, 12, 10, 0.88)" }}
         >
-          {/* Close button */}
           <button
             onClick={handleSkip}
             className="absolute top-4 right-4 z-10 p-2 rounded-lg text-white/30 hover:text-white hover:bg-white/10 transition-all"
@@ -301,7 +321,6 @@ export function Tutorial({ onComplete, onSkip }: TutorialProps) {
             <Cross2Icon width={16} height={16} />
           </button>
 
-          {/* Step icon image */}
           <div className="flex justify-center pt-7 pb-1">
             <div
               className="w-22 h-22 rounded-xl overflow-hidden"
@@ -317,7 +336,6 @@ export function Tutorial({ onComplete, onSkip }: TutorialProps) {
             </div>
           </div>
 
-          {/* Content */}
           <div className="px-6 pb-6 text-center">
             <h3 className="text-white font-semibold text-2xl tracking-tight font-serif italic mb-1.5">
               {step.title}
@@ -326,13 +344,14 @@ export function Tutorial({ onComplete, onSkip }: TutorialProps) {
               {step.description}
             </p>
 
-            {/* Progress bar */}
             <div className="mb-5">
               <div className="flex items-center gap-2">
                 <div className="flex-1 h-0.5 bg-white/10 rounded-full overflow-hidden">
                   <div
                     className="h-full bg-white/40 transition-all duration-500 rounded-full"
-                    style={{ width: `${((currentStep + 1) / TUTORIAL_STEPS.length) * 100}%` }}
+                    style={{
+                      width: `${((currentStep + 1) / TUTORIAL_STEPS.length) * 100}%`,
+                    }}
                   />
                 </div>
                 <span className="text-white/30 text-xs font-medium tabular-nums">
@@ -341,7 +360,6 @@ export function Tutorial({ onComplete, onSkip }: TutorialProps) {
               </div>
             </div>
 
-            {/* Navigation buttons */}
             <div className="flex items-center gap-3">
               <button
                 onClick={handlePrevious}
@@ -370,10 +388,4 @@ export function Tutorial({ onComplete, onSkip }: TutorialProps) {
 export function shouldShowTutorial(): boolean {
   if (typeof window === "undefined") return false;
   return localStorage.getItem(STORAGE_KEY) !== "true";
-}
-
-export function resetTutorial() {
-  if (typeof window !== "undefined") {
-    localStorage.removeItem(STORAGE_KEY);
-  }
 }

@@ -49,7 +49,7 @@ interface InsertedModel {
   name?: string;
   position: [number, number];
   height: number;
-  heightLocked: boolean; // When true, height auto-adjusts with scale (0.36 ratio)
+  heightLocked: boolean;
   modelUrl: string;
   scale: number;
   rotationX: number;
@@ -98,7 +98,6 @@ function calculateMetrics(polygon: GeoJSON.Polygon): { areaM2: number; dimension
 function calculateFrontView(
   polygon: GeoJSON.Polygon
 ): { center: [number, number]; bearing: number } {
-  // Get bounding box center of the polygon
   const coords = polygon.coordinates[0];
   let minLng = Infinity, maxLng = -Infinity, minLat = Infinity, maxLat = -Infinity;
   for (const coord of coords) {
@@ -110,12 +109,11 @@ function calculateFrontView(
   const centerLng = (minLng + maxLng) / 2;
   const centerLat = (minLat + maxLat) / 2;
 
-  // Position camera to the SOUTH, looking NORTH at the building
   // Offset ~200m south for a good top-down angled view
   const offset = 0.002;
   return {
     center: [centerLng, centerLat - offset],
-    bearing: 0  // Facing north
+    bearing: 0
   };
 }
 
@@ -147,7 +145,6 @@ export default function MapPage() {
   // Show tutorial on first visit
   useEffect(() => {
     if (shouldShowTutorial()) {
-      // Small delay to let map load
       const timer = setTimeout(() => {
         setShowTutorial(true);
       }, 1000);
@@ -165,23 +162,20 @@ export default function MapPage() {
       };
       reasoning?: string;
     };
-    action?: string; // Primary action type from backend
+    action?: string;
     answer: string;
     coordinates?: [number, number] | null;
     target?: GeoJSON.Feature | null;
     candidates: GeoJSON.Feature[];
     should_fly_to: boolean;
     zoom_level?: number | null;
-    // New agentic action payloads
     weather_settings?: { type: "rain" | "snow" | "clear" };
     time_settings?: { preset: "day" | "night" };
     camera_settings?: { zoom_delta?: number; pitch?: number; bearing_delta?: number };
     delete_target?: GeoJSON.Feature;
     qa_data?: Record<string, unknown>;
   } | null>(null);
-  
 
-  // Model transform history for undo/redo
   const [modelHistory, setModelHistory] = useState<InsertedModel[]>([]);
   const [modelRedoStack, setModelRedoStack] = useState<InsertedModel[]>([]);
   const modelHistoryRef = useRef(modelHistory);
@@ -196,21 +190,17 @@ export default function MapPage() {
   const selectedModelIdRef = useRef(selectedModelId);
   const insertCooldownRef = useRef(false);
 
-  // Wrapper for setActiveTool that prevents rapid Insert modal toggling
   const handleSetActiveTool = (tool: "select" | "draw" | "insert" | null) => {
-    // Prevent opening Insert modal during cooldown period
     if (tool === "insert" && insertCooldownRef.current) {
       return;
     }
 
-    // Start cooldown when closing Insert modal
     if (activeTool === "insert" && tool !== "insert") {
       insertCooldownRef.current = true;
       setTimeout(() => {
         insertCooldownRef.current = false;
       }, 200);
       
-      // Cancel model placement if switching away from insert tool
       if (isPlacingModel) {
         setPendingModel(null);
         setIsPlacingModel(false);
@@ -218,7 +208,6 @@ export default function MapPage() {
       }
     }
 
-    // Clear search highlight when switching tools
     if (map.current) {
       const source = map.current.getSource("search-target") as mapboxgl.GeoJSONSource;
       if (source) {
@@ -265,7 +254,6 @@ export default function MapPage() {
     modelRedoStackRef.current = modelRedoStack;
   }, [modelRedoStack]);
 
-  // Helper to update the deleted areas on the map
   const updateDeletedAreasSource = useCallback((features: GeoJSON.Feature[]) => {
     if (map.current) {
       const source = map.current.getSource("deleted-areas") as mapboxgl.GeoJSONSource;
@@ -278,36 +266,30 @@ export default function MapPage() {
     }
   }, []);
 
-  // Save model state before transform for undo
   const saveModelStateForUndo = useCallback(() => {
     if (!selectedModelIdRef.current) return;
     const model = insertedModelsRef.current.find(m => m.id === selectedModelIdRef.current);
     if (model) {
       setModelHistory(prev => [...prev, { ...model }]);
-      setModelRedoStack([]); // Clear redo stack on new action
+      setModelRedoStack([]);
     }
   }, []);
 
-  // Undo - handles both building deletions and model transforms
   const handleUndo = useCallback(() => {
-    // First try model transform undo
     const currentModelHistory = modelHistoryRef.current;
     if (currentModelHistory.length > 0) {
       const previousState = currentModelHistory[currentModelHistory.length - 1];
       const currentModel = insertedModelsRef.current.find(m => m.id === previousState.id);
 
       if (currentModel) {
-        // Save current state to redo stack
         setModelRedoStack(prev => [...prev, { ...currentModel }]);
 
-        // Restore previous state
         setInsertedModels(prev => {
           const updated = prev.map(m => m.id === previousState.id ? previousState : m);
           updateModelsSource(updated);
           return updated;
         });
 
-        // Update gizmo position if this model is selected
         if (selectedModelIdRef.current === previousState.id && map.current) {
           const screenPos = map.current.project(previousState.position);
           setGizmoScreenPos({ x: screenPos.x, y: screenPos.y });
@@ -318,7 +300,6 @@ export default function MapPage() {
       return;
     }
 
-    // Fall back to building deletion undo
     const currentDeleted = deletedFeaturesRef.current;
     if (currentDeleted.length === 0) return;
 
@@ -328,28 +309,24 @@ export default function MapPage() {
     setDeletedFeatures(newDeleted);
     setRedoStack(prev => [...prev, lastFeature]);
     updateDeletedAreasSource(newDeleted);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [updateDeletedAreasSource]);
 
-  // Redo - handles both building deletions and model transforms
   const handleRedo = useCallback(() => {
-    // First try model transform redo
     const currentModelRedo = modelRedoStackRef.current;
     if (currentModelRedo.length > 0) {
       const nextState = currentModelRedo[currentModelRedo.length - 1];
       const currentModel = insertedModelsRef.current.find(m => m.id === nextState.id);
 
       if (currentModel) {
-        // Save current state to history
         setModelHistory(prev => [...prev, { ...currentModel }]);
 
-        // Apply redo state
         setInsertedModels(prev => {
           const updated = prev.map(m => m.id === nextState.id ? nextState : m);
           updateModelsSource(updated);
           return updated;
         });
 
-        // Update gizmo position if this model is selected
         if (selectedModelIdRef.current === nextState.id && map.current) {
           const screenPos = map.current.project(nextState.position);
           setGizmoScreenPos({ x: screenPos.x, y: screenPos.y });
@@ -360,7 +337,6 @@ export default function MapPage() {
       return;
     }
 
-    // Fall back to building deletion redo
     const currentRedo = redoStackRef.current;
     if (currentRedo.length === 0) return;
 
@@ -373,9 +349,9 @@ export default function MapPage() {
       updateDeletedAreasSource(newDeleted);
       return newDeleted;
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [updateDeletedAreasSource]);
 
-  // Keyboard shortcuts for undo/redo and escape to deselect
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const isMac = /Mac|iPod|iPhone|iPad/.test(navigator.userAgent);
@@ -388,7 +364,6 @@ export default function MapPage() {
         e.preventDefault();
         handleRedo();
       } else if (e.key === "Escape") {
-        // Deselect model when pressing Escape
         if (selectedModelIdRef.current) {
           setSelectedModelId(null);
           setGizmoScreenPos(null);
@@ -414,8 +389,6 @@ export default function MapPage() {
     }
   }, []);
 
-
-  // Dispatch agentic actions based on search result
   const dispatchAgentAction = useCallback((result: typeof searchResult) => {
     if (!result || !map.current) return;
 
@@ -427,7 +400,6 @@ export default function MapPage() {
           const weatherType = result.weather_settings.type as "clear" | "rain" | "snow";
           setWeather(weatherType);
 
-          // Apply directly to map (don't rely on useEffect timing)
           const mapInstance = map.current as any;
           if (weatherType === "rain") {
             mapInstance.setSnow?.(null);
@@ -462,7 +434,6 @@ export default function MapPage() {
           const preset = result.time_settings.preset as "day" | "night";
           setLightMode(preset);
 
-          // Apply directly to map (don't rely on useEffect timing)
           map.current.setConfigProperty("basemap", "lightPreset", preset);
         }
         break;
@@ -489,16 +460,13 @@ export default function MapPage() {
           if (geometry && geometry.type === "Polygon") {
             const newFeature = result.delete_target as GeoJSON.Feature<GeoJSON.Polygon>;
 
-            // Update React state and directly update map source
             setDeletedFeatures((prev) => {
               const newFeatures = [...prev, newFeature];
-              // Directly update map source (don't rely on useEffect timing)
               updateDeletedAreasSource(newFeatures);
               return newFeatures;
             });
           }
         }
-        // Fly to front view of deleted building (top-down angled view from south)
         if (result.should_fly_to && result.delete_target?.geometry?.type === "Polygon") {
           const frontView = calculateFrontView(result.delete_target.geometry as GeoJSON.Polygon);
           map.current.flyTo({
@@ -509,7 +477,6 @@ export default function MapPage() {
             duration: 1500,
           });
         } else if (result.should_fly_to && result.coordinates) {
-          // Fallback if no polygon available
           map.current.flyTo({
             center: result.coordinates as [number, number],
             zoom: result.zoom_level || 17,
@@ -521,7 +488,6 @@ export default function MapPage() {
         break;
 
       case "question":
-        // Q&A just displays answer, optionally fly to location
         if (result.should_fly_to && result.coordinates) {
           map.current.flyTo({
             center: result.coordinates as [number, number],
@@ -533,7 +499,6 @@ export default function MapPage() {
         break;
 
       default:
-        // Existing navigation/building search behavior
         if (result.should_fly_to && result.coordinates) {
           map.current.flyTo({
             center: result.coordinates as [number, number],
@@ -546,24 +511,20 @@ export default function MapPage() {
     }
   }, [setWeather, setLightMode, setDeletedFeatures, updateDeletedAreasSource]);
 
-  // Handle search
   const handleSearch = useCallback(async () => {
     if (!map.current || !searchQuery.trim()) return;
 
     setIsSearching(true);
 
     try {
-      // Get viewport bounds and center
       const bounds = map.current.getBounds();
       const center = map.current.getCenter();
 
       let apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-      // Ensure API URL has protocol
       if (!apiUrl.startsWith("http://") && !apiUrl.startsWith("https://")) {
         apiUrl = `http://${apiUrl}`;
       }
 
-      // Use POST with JSON body for the new agentic search
       const response = await fetch(`${apiUrl}/api/search`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -587,12 +548,10 @@ export default function MapPage() {
 
       const data = await response.json();
       setSearchResult(data);
-      setSearchQuery(""); // Clear input for next query
+      setSearchQuery("");
 
-      // Dispatch agent action based on result
       dispatchAgentAction(data);
 
-      // Highlight target building if present (for building searches)
       if (data.target && map.current) {
         const source = map.current.getSource("search-target") as mapboxgl.GeoJSONSource;
         if (source) {
@@ -602,7 +561,6 @@ export default function MapPage() {
           });
         }
       } else if (map.current) {
-        // Clear highlight if no target
         const source = map.current.getSource("search-target") as mapboxgl.GeoJSONSource;
         if (source) {
           source.setData({
@@ -615,7 +573,6 @@ export default function MapPage() {
     } catch (error) {
       console.error("Search error:", error);
       const errorMessage = error instanceof Error ? error.message : String(error);
-      // Check if it's a network error
       let apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
       if (!apiUrl.startsWith("http://") && !apiUrl.startsWith("https://")) {
         apiUrl = `http://${apiUrl}`;
@@ -630,7 +587,6 @@ export default function MapPage() {
     }
   }, [searchQuery, dispatchAgentAction]);
 
-  // Clear selection when tool changes
   useEffect(() => {
     if (activeTool !== "select" && selectedBuilding) {
       setSelectedBuilding(null);
@@ -649,7 +605,6 @@ export default function MapPage() {
     }
   }, [activeTool, selectedBuilding, drawnArea]);
 
-  // Handle draw tool mode changes
   useEffect(() => {
     if (!drawRef.current || !map.current) return;
 
@@ -660,7 +615,6 @@ export default function MapPage() {
     }
   }, [activeTool]);
 
-  // Handle draw create event
   const handleDrawCreate = useCallback((e: { features: GeoJSON.Feature[] }) => {
     const feature = e.features[0];
     if (!feature || feature.geometry.type !== "Polygon") return;
@@ -674,7 +628,6 @@ export default function MapPage() {
       dimensions: metrics.dimensions,
     });
 
-    // Update highlight layer
     if (map.current) {
       const source = map.current.getSource("selected-building") as mapboxgl.GeoJSONSource;
       if (source) {
@@ -685,7 +638,6 @@ export default function MapPage() {
       }
     }
 
-    // Clear the drawn feature from MapboxDraw
     setTimeout(() => {
       if (drawRef.current && activeToolRef.current === "draw") {
         drawRef.current.deleteAll();
@@ -693,7 +645,6 @@ export default function MapPage() {
     }, 50);
   }, []);
 
-  // Handle delete area - add polygon to clip layer
   const handleDeleteArea = useCallback((polygon: GeoJSON.Polygon) => {
     const newFeature: GeoJSON.Feature = {
       type: "Feature",
@@ -701,7 +652,6 @@ export default function MapPage() {
       properties: {},
     };
 
-    // Clear redo stack when new deletion is made
     setRedoStack([]);
 
     setDeletedFeatures(prev => {
@@ -712,26 +662,22 @@ export default function MapPage() {
 
     clearSelection();
 
-    // Restart draw mode if still in draw tool
     if (activeToolRef.current === "draw" && drawRef.current) {
       drawRef.current.changeMode("draw_polygon");
     }
   }, [clearSelection, updateDeletedAreasSource]);
 
-  // Handle placing model on map - called from modal
   const handlePlaceModel = useCallback((model: PendingModel) => {
     setPendingModel(model);
     setIsPlacingModel(true);
-    setActiveTool(null); // Close modal but stay in placement mode
+    setActiveTool(null);
     
-    // Initialize preview position at map center if available
     if (map.current) {
       const center = map.current.getCenter();
       setPreviewPosition([center.lng, center.lat]);
     }
   }, []);
 
-  // Fly to a model's position
   const handleFlyToModel = useCallback((position: [number, number]) => {
     if (map.current) {
       map.current.flyTo({
@@ -743,7 +689,6 @@ export default function MapPage() {
     }
   }, []);
 
-  // Update the custom models GeoJSON source
   const updateModelsSource = useCallback((models: InsertedModel[]) => {
     const source = map.current?.getSource("custom-models") as mapboxgl.GeoJSONSource;
     if (source) {
@@ -768,7 +713,6 @@ export default function MapPage() {
     }
   }, []);
 
-  // Delete a model
   const handleDeleteModel = useCallback((modelId: string) => {
     setInsertedModels(prev => {
       const updated = prev.filter(m => m.id !== modelId);
@@ -777,8 +721,6 @@ export default function MapPage() {
     });
   }, [updateModelsSource]);
 
-  // Catch Mapbox GL internal render errors (e.g. corrupt model textures)
-  // These throw synchronous TypeErrors in the render loop, not map error events
   useEffect(() => {
     const handleWindowError = (e: ErrorEvent) => {
       const msg = e.message || "";
@@ -800,12 +742,10 @@ export default function MapPage() {
     return () => window.removeEventListener("error", handleWindowError);
   }, [updateModelsSource]);
 
-  // Keyboard shortcut for deleting selected model
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Delete" || e.key === "Backspace") {
         if (selectedModelIdRef.current) {
-          // Only prevent default if we're actually deleting something
           e.preventDefault();
           handleDeleteModel(selectedModelIdRef.current);
           setSelectedModelId(null);
@@ -818,14 +758,12 @@ export default function MapPage() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleDeleteModel]);
 
-  // Update a model's properties
   const handleUpdateModel = useCallback((modelId: string, updates: { name?: string; scale?: number; positionX?: number; positionY?: number; height?: number; heightLocked?: boolean; rotationX?: number; rotationY?: number; rotationZ?: number }) => {
     setInsertedModels(prev => {
       const updated = prev.map(m => {
         if (m.id !== modelId) return m;
 
-        // Handle position updates separately since position is [lng, lat] tuple
-        let newModel = { ...m };
+        const newModel = { ...m };
         if (updates.name !== undefined) {
           newModel.name = updates.name;
         }
@@ -843,8 +781,6 @@ export default function MapPage() {
         }
         if (updates.scale !== undefined) {
           newModel.scale = updates.scale;
-          // Auto-adjust height when scale changes if heightLocked is true
-          // Keep height at 0 (ground level) when locked
           if (newModel.heightLocked) {
             newModel.height = 0;
           }
@@ -865,7 +801,6 @@ export default function MapPage() {
     });
   }, [updateModelsSource]);
 
-  // Update gizmo screen position for a model
   const updateGizmoPosition = useCallback((modelId: string) => {
     if (!map.current) return;
     const model = insertedModelsRef.current.find(m => m.id === modelId);
@@ -875,7 +810,6 @@ export default function MapPage() {
     }
   }, []);
 
-  // Select a model for transform
   const selectModel = useCallback((modelId: string | null) => {
     setSelectedModelId(modelId);
     if (modelId) {
@@ -885,14 +819,12 @@ export default function MapPage() {
     }
   }, [updateGizmoPosition]);
 
-  // Handle gizmo move
   const handleGizmoMove = useCallback((deltaX: number, deltaY: number) => {
     if (!selectedModelIdRef.current || !map.current) return;
 
     const model = insertedModelsRef.current.find(m => m.id === selectedModelIdRef.current);
     if (!model) return;
 
-    // Convert current position to screen coords, add delta, convert back
     const currentScreen = map.current.project(model.position);
     const newScreen = { x: currentScreen.x + deltaX, y: currentScreen.y + deltaY };
     const newGeo = map.current.unproject([newScreen.x, newScreen.y]);
@@ -907,11 +839,9 @@ export default function MapPage() {
       return updated;
     });
 
-    // Update gizmo position
     setGizmoScreenPos(newScreen);
   }, [updateModelsSource]);
 
-  // Handle gizmo rotate (supports all 3 axes)
   const handleGizmoRotate = useCallback((axis: "x" | "y" | "z", newRotation: number) => {
     if (!selectedModelIdRef.current) return;
 
@@ -927,7 +857,6 @@ export default function MapPage() {
     });
   }, [updateModelsSource]);
 
-  // Handle gizmo height change (Y axis in world space)
   const handleGizmoHeightChange = useCallback((deltaHeight: number) => {
     if (!selectedModelIdRef.current) return;
 
@@ -942,11 +871,10 @@ export default function MapPage() {
     });
   }, [updateModelsSource]);
 
-  // Check if click is near a model (helper function)
   const getModelAtPoint = useCallback((point: { x: number; y: number }): InsertedModel | null => {
     if (!map.current) return null;
 
-    const clickThreshold = 100; // pixels - how close you need to click to a model
+    const clickThreshold = 100;
     let closestModel: InsertedModel | null = null;
     let closestDistance = Infinity;
 
@@ -966,14 +894,12 @@ export default function MapPage() {
     return closestModel;
   }, []);
 
-  // Update preview model position on mouse move
   const handleMouseMove = useCallback((e: mapboxgl.MapMouseEvent) => {
     if (isPlacingModelRef.current && pendingModelRef.current) {
       setPreviewPosition([e.lngLat.lng, e.lngLat.lat]);
     }
   }, []);
 
-  // Update preview model source
   const updatePreviewSource = useCallback((position: [number, number] | null, model: PendingModel | null) => {
     if (!map.current) return;
     
@@ -985,8 +911,6 @@ export default function MapPage() {
       return;
     }
 
-    // Place model on ground (height = 0) - Mapbox will handle terrain elevation
-    // Small offset to ensure model sits on surface
     const groundHeight = 0;
     source.setData({
       type: "FeatureCollection",
@@ -1008,7 +932,6 @@ export default function MapPage() {
     });
   }, []);
 
-  // Update preview when position or pending model changes
   useEffect(() => {
     if (isPlacingModel && pendingModel) {
       if (previewPosition) {
@@ -1020,22 +943,19 @@ export default function MapPage() {
     }
   }, [isPlacingModel, pendingModel, previewPosition, updatePreviewSource]);
 
-  // Handle map click for model placement
   const handleModelPlacement = useCallback((e: mapboxgl.MapMouseEvent) => {
     if (!isPlacingModelRef.current || !pendingModelRef.current || !map.current) return;
 
     const pending = pendingModelRef.current;
-    // Place model on ground - account for model origin point
-    // If model origin is at center, we need a small offset to ensure bottom sits on ground
-    // Using a small fraction of scale to approximate model height offset
-    // This ensures models sit on the ground surface rather than floating or being underground
-    const groundHeight = 0; // Start at ground level - Mapbox handles terrain elevation
+
+    // Placing model on ground logic ...
+    const groundHeight = 0;
     
     const newModel: InsertedModel = {
       id: `model-${Date.now()}`,
       position: [e.lngLat.lng, e.lngLat.lat],
       height: groundHeight,
-      heightLocked: false, // Allow manual height adjustment if needed
+      heightLocked: false,
       modelUrl: pending.url,
       scale: pending.scale,
       rotationX: pending.rotationX,
@@ -1049,7 +969,6 @@ export default function MapPage() {
       return updated;
     });
 
-    // Reset placement state and clear preview
     setPendingModel(null);
     setIsPlacingModel(false);
     setPreviewPosition(null);
@@ -1059,28 +978,23 @@ export default function MapPage() {
     async (e: mapboxgl.MapMouseEvent) => {
       if (!map.current) return;
 
-      // First, check if we clicked on a custom model (works with any tool)
       const clickedModel = getModelAtPoint(e.point);
       if (clickedModel) {
         selectModel(clickedModel.id);
         return;
       }
 
-      // If we have a selected model and clicked elsewhere, deselect it
       if (selectedModelIdRef.current) {
         selectModel(null);
       }
 
-      // Only proceed with building selection if in select mode
       if (activeToolRef.current !== "select") return;
 
       const lng = e.lngLat.lng;
       const lat = e.lngLat.lat;
 
-      // Query all features at click point
       const features = map.current.queryRenderedFeatures(e.point);
 
-      // Find building features
       const buildingFeature = features.find(
         (f) =>
           f.layer?.id?.includes("building") ||
@@ -1090,7 +1004,6 @@ export default function MapPage() {
           f.layer?.id?.includes("3d")
       );
 
-      // Set initial selection with loading state
       setIsLoadingAddress(true);
       const featureId = buildingFeature?.id || `${lng}-${lat}-${Date.now()}`;
 
@@ -1102,11 +1015,9 @@ export default function MapPage() {
         polygon: null,
       });
 
-      // Get address via reverse geocoding
       const accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
       const { name, address } = await reverseGeocode(lng, lat, accessToken);
 
-      // Extract polygon from feature geometry if available
       let polygon: GeoJSON.Polygon | null = null;
       if (buildingFeature) {
         if (buildingFeature.geometry.type === "Polygon") {
@@ -1142,7 +1053,7 @@ export default function MapPage() {
         container: mapContainer.current,
         style: "mapbox://styles/mapbox/standard",
         projection: { name: "globe" },
-        center: [-100, 40], // Globe view - North America
+        center: [-100, 40],
         zoom: 1.5,
         pitch: 0,
         bearing: 0,
@@ -1204,25 +1115,21 @@ export default function MapPage() {
         map.current.setConfigProperty("basemap", "showPointOfInterestLabels", true);
         map.current.setConfigProperty("basemap", "lightPreset", lightMode);
 
-        // Add source for selected building highlight
         map.current.addSource("selected-building", {
           type: "geojson",
           data: { type: "FeatureCollection", features: [] },
         });
 
-        // Add source for search target building
         map.current.addSource("search-target", {
           type: "geojson",
           data: { type: "FeatureCollection", features: [] },
         });
 
-        // Add source for deleted areas (clip layer)
         map.current.addSource("deleted-areas", {
           type: "geojson",
           data: { type: "FeatureCollection", features: [] },
         });
 
-        // Add clip layer to erase buildings
         map.current.addLayer({
           id: "building-eraser",
           type: "clip",
@@ -1233,7 +1140,6 @@ export default function MapPage() {
           },
         });
 
-        // Add highlight layers for draw mode
         map.current.addLayer({
           id: "selected-building-fill",
           type: "fill",
@@ -1267,7 +1173,6 @@ export default function MapPage() {
           },
         });
 
-        // Add search target highlight layers
         map.current.addLayer({
           id: "search-target-fill",
           type: "fill",
@@ -1289,19 +1194,16 @@ export default function MapPage() {
           },
         });
 
-        // Add source for custom 3D models
         map.current.addSource("custom-models", {
           type: "geojson",
           data: { type: "FeatureCollection", features: [] },
         });
 
-        // Add source for preview model
         map.current.addSource("model-preview", {
           type: "geojson",
           data: { type: "FeatureCollection", features: [] },
         });
 
-        // Add native model layer for custom 3D models
         try {
           map.current.addLayer({
             id: "custom-models-layer",
@@ -1320,7 +1222,6 @@ export default function MapPage() {
             },
           } as mapboxgl.LayerSpecification);
 
-          // Add preview model layer (semi-transparent)
           map.current.addLayer({
             id: "model-preview-layer",
             type: "model",
@@ -1329,25 +1230,22 @@ export default function MapPage() {
               "model-id": ["get", "model-uri"],
             },
             paint: {
-              "model-opacity": 0.5, // Half opacity for preview
+              "model-opacity": 0.5,
               "model-rotation": [["get", "rotationX"], ["get", "rotationY"], ["get", "rotationZ"]],
               "model-scale": [["get", "scale"], ["get", "scale"], ["get", "scale"]],
               "model-translation": [0, 0, ["get", "height"]],
-              "model-cast-shadows": false, // No shadows for preview
+              "model-cast-shadows": false,
               "model-emissive-strength": 0.3,
             },
           } as mapboxgl.LayerSpecification);
 
-          // Model Loading failure catch - only trigger if user has inserted models
           map.current.on("error", (e) => {
             const errorMsg = e.error?.message || "";
             if (errorMsg.includes("meshes is not iterable") || errorMsg.includes("t1.json") || errorMsg.includes("reading 'width'")) {
-              // Only show alert if user actually has inserted models
               if (insertedModelsRef.current.length === 0) return;
 
               console.error("Model loading error - GLB file may be malformed:", e);
 
-              // Find and remove the problematic model
               setInsertedModels(prev => {
                 const updated = prev.slice(0, -1);
                 updateModelsSource(updated);
@@ -1367,7 +1265,6 @@ export default function MapPage() {
       map.current.on("click", handleModelPlacement);
       map.current.on("mousemove", handleMouseMove);
 
-      // Update gizmo position when map moves
       map.current.on("move", () => {
         if (selectedModelIdRef.current && map.current) {
           const model = insertedModelsRef.current.find(m => m.id === selectedModelIdRef.current);
@@ -1378,9 +1275,9 @@ export default function MapPage() {
         }
       });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [handleBuildingClick, handleDrawCreate, handleModelPlacement, handleMouseMove, handleSearch]);
 
-  // Update cursor based on active tool and placement mode
   useEffect(() => {
     if (map.current) {
       let cursor = "";
@@ -1395,15 +1292,13 @@ export default function MapPage() {
     }
   }, [activeTool, isPlacingModel]);
 
-  // Update light mode (day/night weather)
   useEffect(() => {
     if (map.current && map.current.isStyleLoaded()) {
       map.current.setConfigProperty("basemap", "lightPreset", lightMode);
 
-      // Update selection colors based on light mode
       const selectionColor = lightMode === "day" ? "#404040" : "#d0d0d0";
 
-      // Update selected building layers
+      // update all layers...
       if (map.current.getLayer("selected-building-fill")) {
         map.current.setPaintProperty("selected-building-fill", "fill-color", selectionColor);
       }
@@ -1414,7 +1309,6 @@ export default function MapPage() {
         map.current.setPaintProperty("selected-building-outline", "line-color", selectionColor);
       }
 
-      // Update MapboxDraw layers
       if (map.current.getLayer("gl-draw-polygon-fill.cold")) {
         map.current.setPaintProperty("gl-draw-polygon-fill.cold", "fill-color", selectionColor);
       }
@@ -1442,7 +1336,6 @@ export default function MapPage() {
     }
   }, [lightMode]);
 
-  // Update weather effects (rain/snow)
   useEffect(() => {
     if (map.current && map.current.isStyleLoaded()) {
       const mapInstance = map.current as any;
@@ -1469,7 +1362,6 @@ export default function MapPage() {
           vignetteColor: "rgba(200, 220, 255, 0.3)",
         });
       } else {
-        // Clear weather
         mapInstance.setRain(null);
         mapInstance.setSnow(null);
       }
@@ -1478,7 +1370,6 @@ export default function MapPage() {
 
   return (
     <div className="relative h-screen w-full">
-      {/* GitHub icon - top left */}
       <a
         href="https://github.com/jli2007/delta"
         target="_blank"
@@ -1488,7 +1379,6 @@ export default function MapPage() {
         <GitHubLogoIcon width={20} height={20} />
       </a>
 
-      {/* Bug Report button - below GitHub button */}
       <button
         onClick={() => setShowBugReportModal(true)}
         className="absolute top-20 left-4 z-10 p-3 rounded-xl bg-black/40 backdrop-blur-md border border-white/10 text-white/60 hover:text-white hover:bg-black/60 transition-all"
@@ -1591,7 +1481,6 @@ export default function MapPage() {
           }}
         />
       )}
-      {/* Search Result Popup - positioned above search bar */}
       {searchResult && (
         <SearchResultPopup
           result={searchResult}
@@ -1599,7 +1488,6 @@ export default function MapPage() {
             setSearchResult(null);
           }}
           onCandidateClick={(candidate) => {
-            // Calculate center of candidate polygon using bbox
             try {
               const [minLng, minLat, maxLng, maxLat] = bbox({ type: "Feature", geometry: candidate.geometry, properties: {} });
               const candidateCenter: [number, number] = [(minLng + maxLng) / 2, (minLat + maxLat) / 2];
@@ -1613,7 +1501,6 @@ export default function MapPage() {
                   duration: 2000,
                 });
 
-                // Highlight the candidate building
                 const source = map.current.getSource("search-target") as mapboxgl.GeoJSONSource;
                 if (source) {
                   source.setData({
@@ -1622,7 +1509,6 @@ export default function MapPage() {
                   });
                 }
                 
-                // Update search result to show this candidate as target
                 setSearchResult({
                   ...searchResult,
                   target: candidate,
@@ -1636,11 +1522,10 @@ export default function MapPage() {
         />
       )}
 
-      {/* Search Bar */}
       <div
         data-tutorial="search-bar"
         data-search-container
-        className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10 w-[min(500px,calc(100vw-360px))] lg:w-[500px] xl:w-[550px] 2xl:w-[600px] rounded-2xl bg-black/40 backdrop-blur-md border border-white/10 shadow-xl px-4 py-2"
+        className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10 w-[min(500px,calc(100vw-360px))] lg:w-125 xl:w-137.5 2xl:w-150 rounded-2xl bg-black/40 backdrop-blur-md border border-white/10 shadow-xl px-4 py-2"
       >
         <SearchBar
           value={searchQuery}

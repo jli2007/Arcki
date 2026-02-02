@@ -30,7 +30,7 @@ interface PreviewResult {
   cleaned_prompt: string;
   dalle_prompt: string;
   image_urls: string[];
-  preview_3d_url?: string;  // 3D perspective preview for user visualization
+  preview_3d_url?: string;
 }
 
 interface ThreeDJobResult {
@@ -62,23 +62,18 @@ export function Prompt3DGenerator({ isVisible, onClose, onRequestExpand, onPlace
   const [style, setStyle] = useState<"architectural" | "modern" | "classical" | "futuristic">("architectural");
   const [numViews, setNumViews] = useState(1);
 
-  // Workflow state
   const [workflowStage, setWorkflowStage] = useState<WorkflowStage>("input");
   const [isGeneratingPreview, setIsGeneratingPreview] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Preview state
   const [previewResult, setPreviewResult] = useState<PreviewResult | null>(null);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [isExpandedView, setIsExpandedView] = useState(false);
-
-  // 3D generation state (runs silently in background)
   const [threeDJob, setThreeDJob] = useState<ThreeDJobResult | null>(null);
   const [isPlacing, setIsPlacing] = useState(false);
 
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Load state from localStorage on mount
   useEffect(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -92,7 +87,6 @@ export function Prompt3DGenerator({ isVisible, onClose, onRequestExpand, onPlace
         setSelectedImageIndex(state.selectedImageIndex);
         setThreeDJob(state.threeDJob);
 
-        // Resume polling if we have an active 3D job
         if (state.previewResult && state.workflowStage === "preview") {
           start3DGeneration(state.previewResult.job_id);
         }
@@ -103,7 +97,6 @@ export function Prompt3DGenerator({ isVisible, onClose, onRequestExpand, onPlace
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Save state to localStorage whenever it changes
   useEffect(() => {
     const state: GeneratorState = {
       prompt,
@@ -117,19 +110,15 @@ export function Prompt3DGenerator({ isVisible, onClose, onRequestExpand, onPlace
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   }, [prompt, style, numViews, workflowStage, previewResult, selectedImageIndex, threeDJob]);
 
-  // Auto-minimize when user switches to another tool, expand when they return
   useEffect(() => {
     if (!isVisible && !isMinimized) {
-      // User switched tools - auto-minimize to keep generation running
       setIsMinimized(true);
     } else if (isVisible && isMinimized) {
-      // User clicked Generate again - expand
       setIsMinimized(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isVisible]);
 
-  // Cleanup polling on unmount
   useEffect(() => {
     return () => {
       if (pollIntervalRef.current) {
@@ -138,7 +127,6 @@ export function Prompt3DGenerator({ isVisible, onClose, onRequestExpand, onPlace
     };
   }, []);
 
-  // Start 3D generation automatically when preview is ready (silently in background)
   useEffect(() => {
     if (previewResult && workflowStage === "preview" && !threeDJob) {
       start3DGeneration(previewResult.job_id);
@@ -158,7 +146,7 @@ export function Prompt3DGenerator({ isVisible, onClose, onRequestExpand, onPlace
       const response = await fetch(`${API_BASE}/generate-preview`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        credentials: 'include', // Send session cookie
+        credentials: 'include',
         body: JSON.stringify({
           prompt,
           style,
@@ -187,24 +175,21 @@ export function Prompt3DGenerator({ isVisible, onClose, onRequestExpand, onPlace
     if (!previewResult) return;
 
     try {
-      // Only start 3D if not already started
       const response = await fetch(`${API_BASE}/start-3d`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           job_id: jobId,
           image_urls: previewResult.image_urls,
-          texture_size: 1024, // Max texture resolution for better quality
+          texture_size: 1024, // Max texture resolution...
           use_multi: numViews > 1,
         }),
       });
 
       if (!response.ok) {
-        // May already be started - just continue polling
         console.log("3D generation already started, resuming polling...");
       }
 
-      // Start polling for 3D job status (silently)
       if (pollIntervalRef.current) {
         clearInterval(pollIntervalRef.current);
       }
@@ -212,7 +197,7 @@ export function Prompt3DGenerator({ isVisible, onClose, onRequestExpand, onPlace
       pollIntervalRef.current = setInterval(async () => {
         try {
           const statusRes = await fetch(`${API_BASE}/3d-job/${jobId}`, {
-            credentials: 'include' // Important: send session cookie
+            credentials: 'include'
           });
           if (!statusRes.ok) return;
 
@@ -225,7 +210,7 @@ export function Prompt3DGenerator({ isVisible, onClose, onRequestExpand, onPlace
             }
           }
         } catch {
-          // Silent fail - keep polling
+          // Silent fail, keep polling
         }
       }, 1500);
 
@@ -235,24 +220,20 @@ export function Prompt3DGenerator({ isVisible, onClose, onRequestExpand, onPlace
   };
 
   const handleRefinePrompt = async () => {
-    // Stop any ongoing 3D generation polling
     if (pollIntervalRef.current) {
       clearInterval(pollIntervalRef.current);
     }
     
-    // Cancel the 3D job on the backend if one exists
     if (previewResult?.job_id) {
       try {
         await fetch(`${API_BASE}/jobs/${previewResult.job_id}/cancel`, {
           method: "POST",
         });
       } catch (e) {
-        // Ignore cancel errors - job may already be done
         console.log("Could not cancel job:", e);
       }
     }
     
-    // Go back to input stage
     setWorkflowStage("input");
     setPreviewResult(null);
     setThreeDJob(null);
@@ -263,15 +244,12 @@ export function Prompt3DGenerator({ isVisible, onClose, onRequestExpand, onPlace
   const handleFinish = async () => {
     if (!onPlaceModel || !previewResult) return;
 
-    // If 3D model is ready, place it immediately
     if (threeDJob?.status === "completed" && threeDJob.download_url) {
       await placeModel(threeDJob.download_url, threeDJob.model_file);
     } else {
-      // Show "placing" state and wait for 3D to complete
       setWorkflowStage("placing");
       setIsPlacing(true);
       
-      // Wait for 3D generation to complete
       const waitForModel = setInterval(async () => {
         try {
           const statusRes = await fetch(`${API_BASE}/3d-job/${previewResult.job_id}`);
@@ -282,7 +260,6 @@ export function Prompt3DGenerator({ isVisible, onClose, onRequestExpand, onPlace
 
           if (status.status === "completed" && status.download_url) {
             clearInterval(waitForModel);
-            // Pass the download_url directly - don't rely on React state which updates async
             await placeModel(status.download_url, status.model_file);
           } else if (status.status === "failed") {
             clearInterval(waitForModel);
@@ -327,7 +304,6 @@ export function Prompt3DGenerator({ isVisible, onClose, onRequestExpand, onPlace
         rotationZ: 0,
       });
 
-      // Clear all state and localStorage before closing
       localStorage.removeItem(STORAGE_KEY);
       setIsPlacing(false);
       setWorkflowStage("input");
@@ -431,7 +407,6 @@ export function Prompt3DGenerator({ isVisible, onClose, onRequestExpand, onPlace
     { label: "Victorian", prompt: "Victorian-era building with decorative trim, bay windows, and colorful painted facade" },
   ];
 
-  // Expanded Modal View
   const ExpandedModal = () => {
     if (!isExpandedView || !previewResult) return null;
     
@@ -468,7 +443,6 @@ export function Prompt3DGenerator({ isVisible, onClose, onRequestExpand, onPlace
           className="flex flex-col items-center justify-center w-full h-full"
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Image - Constrained to viewport */}
           <div className="flex-1 flex items-center justify-center w-full min-h-0">
             <Image
               src={previewResult.image_urls[selectedImageIndex]}
@@ -480,7 +454,6 @@ export function Prompt3DGenerator({ isVisible, onClose, onRequestExpand, onPlace
             />
           </div>
           
-          {/* Thumbnail Strip */}
           {previewResult.image_urls.length > 1 && (
             <div className="flex gap-3 justify-center mt-6 shrink-0">
               {previewResult.image_urls.map((url, i) => (
@@ -499,7 +472,6 @@ export function Prompt3DGenerator({ isVisible, onClose, onRequestExpand, onPlace
             </div>
           )}
           
-          {/* Counter */}
           <div className="text-center mt-3 text-white/60 text-sm shrink-0">
             {selectedImageIndex + 1} / {previewResult.image_urls.length}
           </div>
@@ -508,28 +480,23 @@ export function Prompt3DGenerator({ isVisible, onClose, onRequestExpand, onPlace
     );
   };
 
-  // Clear state and close permanently
   const handleClose = () => {
     localStorage.removeItem(STORAGE_KEY);
     setIsMinimized(false);
     onClose();
   };
 
-  // Don't render anything if never opened and no saved state
   if (!isVisible && !isMinimized && workflowStage === "input" && !prompt && !previewResult) {
     return null;
   }
 
-  // Handle expanding from minimized state
   const handleExpand = () => {
     setIsMinimized(false);
-    // If not currently visible (user switched to another tool), request parent to show us
     if (!isVisible) {
       onRequestExpand();
     }
   };
 
-  // Minimized widget (shown when minimized OR when tool switched)
   if (isMinimized || !isVisible) {
     return (
       <div className="absolute right-4 top-4 z-20">
@@ -563,12 +530,9 @@ export function Prompt3DGenerator({ isVisible, onClose, onRequestExpand, onPlace
 
   return (
     <>
-      {/* Expanded Modal */}
       <ExpandedModal />
 
-      {/* Main Panel */}
       <div className="absolute right-4 top-4 z-20 w-105 rounded-2xl bg-black/40 backdrop-blur-md border border-white/10 shadow-xl overflow-hidden">
-        {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-white/10">
           <div className="flex items-center gap-3">
             <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-white/10 border border-white/20">
@@ -591,13 +555,9 @@ export function Prompt3DGenerator({ isVisible, onClose, onRequestExpand, onPlace
           </button>
         </div>
 
-        {/* Content */}
         <div className="p-5 space-y-5 max-h-[70vh] overflow-y-auto">
-          
-          {/* === INPUT STAGE === */}
           {workflowStage === "input" && (
             <>
-              {/* Prompt Input */}
               <div>
                 <label className="block text-white/80 text-base font-medium font-serif italic tracking-wide mb-3">Building Description</label>
                 <textarea
@@ -610,7 +570,6 @@ export function Prompt3DGenerator({ isVisible, onClose, onRequestExpand, onPlace
                 />
               </div>
 
-              {/* Quick Prompts */}
               <div className="pt-2">
                 <label className="block text-white/80 text-base font-medium font-serif italic tracking-wide mb-3">Popular Snippets</label>
                 <div className="flex flex-wrap gap-2">
@@ -627,7 +586,6 @@ export function Prompt3DGenerator({ isVisible, onClose, onRequestExpand, onPlace
                 </div>
               </div>
 
-              {/* Style Selection */}
               <div className="pt-2">
                 <label className="block text-white/80 text-base font-medium font-serif italic tracking-wide mb-3">Style</label>
                 <div className="grid grid-cols-2 gap-2">
@@ -648,7 +606,6 @@ export function Prompt3DGenerator({ isVisible, onClose, onRequestExpand, onPlace
                 </div>
               </div>
 
-              {/* Views Selection */}
               <div className="pt-2">
                 <label className="block text-white/80 text-base font-medium font-serif italic tracking-wide mb-3">Image Views</label>
                 <div className="flex gap-2">
@@ -669,13 +626,11 @@ export function Prompt3DGenerator({ isVisible, onClose, onRequestExpand, onPlace
                 </div>
               </div>
 
-              {/* Generate Preview Button */}
               <button
                 onClick={handleGeneratePreview}
                 disabled={!prompt.trim() || isGeneratingPreview}
                 className="relative w-full flex items-center justify-center gap-3 px-5 py-4 rounded-xl bg-white/90 hover:bg-white text-black font-semibold text-base transition-all disabled:opacity-50 disabled:cursor-not-allowed overflow-hidden"
               >
-                {/* Large fading background icon */}
                 <ImageIcon
                   width={80}
                   height={80}
@@ -694,7 +649,6 @@ export function Prompt3DGenerator({ isVisible, onClose, onRequestExpand, onPlace
                 )}
               </button>
 
-              {/* Clear & Start Over Button - only show if there's existing state */}
               {(prompt || previewResult) && (
                 <button
                   onClick={() => {
@@ -715,10 +669,8 @@ export function Prompt3DGenerator({ isVisible, onClose, onRequestExpand, onPlace
             </>
           )}
 
-          {/* === PREVIEW STAGE === */}
           {(workflowStage === "preview" || workflowStage === "placing") && previewResult && (
             <>
-              {/* Generated Images Preview */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <label className="text-white/70 text-sm font-medium flex items-center gap-2">
@@ -734,7 +686,6 @@ export function Prompt3DGenerator({ isVisible, onClose, onRequestExpand, onPlace
                   </button>
                 </div>
                 
-                {/* Image Grid */}
                 <div className="grid grid-cols-2 gap-2">
                   {previewResult.image_urls.map((url, i) => (
                     <button
@@ -764,7 +715,6 @@ export function Prompt3DGenerator({ isVisible, onClose, onRequestExpand, onPlace
                 </div>
               </div>
 
-              {/* 3D Preview Image (for user visualization - not used for Trellis) */}
               {previewResult.preview_3d_url && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
@@ -797,7 +747,6 @@ export function Prompt3DGenerator({ isVisible, onClose, onRequestExpand, onPlace
                 </div>
               )}
 
-              {/* Prompt Info */}
               <div className="p-3 rounded-lg bg-white/5 border border-white/10">
                 <p className="text-white/50 text-xs line-clamp-2">
                   <span className="text-white/70 font-medium">Prompt: </span>
@@ -805,7 +754,6 @@ export function Prompt3DGenerator({ isVisible, onClose, onRequestExpand, onPlace
                 </p>
               </div>
 
-              {/* Action Buttons */}
               <div className="flex gap-2">
                 <button
                   onClick={handleRefinePrompt}

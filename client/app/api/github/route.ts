@@ -6,17 +6,17 @@ export async function POST(request: NextRequest) {
     const { title, body: issueBody, labels = ["bug"] } = body;
 
     if (!title || !title.trim()) {
-      return NextResponse.json(
-        { error: "Title is required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Title is required" }, { status: 400 });
     }
 
     const githubToken = process.env.GITHUB_TOKEN;
     if (!githubToken) {
       return NextResponse.json(
-        { error: "GitHub token not configured. Please set GITHUB_TOKEN in your environment." },
-        { status: 500 }
+        {
+          error:
+            "GitHub token not configured. Please set GITHUB_TOKEN in your environment.",
+        },
+        { status: 500 },
       );
     }
 
@@ -53,27 +53,37 @@ export async function POST(request: NextRequest) {
       });
     } else if (response.status === 401) {
       return NextResponse.json(
-        { error: "GitHub authentication failed. Please check your GITHUB_TOKEN." },
-        { status: 401 }
+        {
+          error:
+            "GitHub authentication failed. Please check your GITHUB_TOKEN.",
+        },
+        { status: 401 },
       );
     } else if (response.status === 403) {
       const errorData = await response.json().catch(() => ({}));
       return NextResponse.json(
-        { error: `GitHub API permission denied: ${errorData.message || "Forbidden"}` },
-        { status: 403 }
+        {
+          error: `GitHub API permission denied: ${errorData.message || "Forbidden"}`,
+        },
+        { status: 403 },
       );
     } else {
       const errorData = await response.json().catch(() => ({}));
       return NextResponse.json(
         { error: `GitHub API error: ${errorData.message || "Unknown error"}` },
-        { status: response.status }
+        { status: response.status },
       );
     }
   } catch (error) {
     console.error("Failed to create GitHub issue:", error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to create GitHub issue" },
-      { status: 500 }
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to create GitHub issue",
+      },
+      { status: 500 },
     );
   }
 }
