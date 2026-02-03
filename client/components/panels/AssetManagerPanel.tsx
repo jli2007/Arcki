@@ -24,6 +24,8 @@ interface InsertedModel {
   rotationZ: number;
   isFavorited?: boolean;
   generatedFrom?: string;
+  supabaseModelId?: string;
+  supabaseGlbUrl?: string;
 }
 
 interface AssetManagerPanelProps {
@@ -32,7 +34,9 @@ interface AssetManagerPanelProps {
   onFlyTo: (position: [number, number]) => void;
   onDelete: (id: string) => void;
   onSaveToLibrary?: (model: InsertedModel) => Promise<void>;
+  onUnfavourite?: (model: InsertedModel) => Promise<void>;
   savingModelId?: string | null;
+  unfavouritingModelId?: string | null;
   onUpdateModel: (
     id: string,
     updates: {
@@ -54,7 +58,9 @@ export function AssetManagerPanel({
   onFlyTo,
   onDelete,
   onSaveToLibrary,
+  onUnfavourite,
   savingModelId,
+  unfavouritingModelId,
   onUpdateModel,
 }: AssetManagerPanelProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -163,26 +169,23 @@ export function AssetManagerPanel({
                         {model.name || `Model ${index + 1}`}
                       </button>
                     )}
-                    {onSaveToLibrary && (
+                    {(onSaveToLibrary || onUnfavourite) && (
                       <button
                         onClick={async () => {
-                          if (savingModelId === model.id || model.isFavorited) return;
-                          await onSaveToLibrary(model);
+                          if (savingModelId === model.id || unfavouritingModelId === model.id) return;
+                          if (model.isFavorited && model.supabaseModelId && onUnfavourite) {
+                            await onUnfavourite(model);
+                          } else if (!model.isFavorited && onSaveToLibrary) {
+                            await onSaveToLibrary(model);
+                          }
                         }}
-                        disabled={savingModelId === model.id || !!model.isFavorited}
+                        disabled={savingModelId === model.id || unfavouritingModelId === model.id}
                         className={`shrink-0 p-1.5 rounded-md transition-all ${
                           model.isFavorited
                             ? "text-amber-400 bg-amber-500/20"
                             : "text-amber-400 hover:text-amber-300 hover:bg-amber-500/20"
                         } disabled:opacity-50`}
-                        title={
-                          model.isFavorited
-                            ? "Already saved to public library"
-                            : savingModelId === model.id
-                            ? "Saving to public library..."
-                            : "Save to public library (favourite)"
-                        }
-                        aria-label="Save to public library"
+                        aria-label={model.isFavorited ? "Remove from library" : "Save to public library"}
                       >
                         {model.isFavorited ? (
                           <StarFilledIcon width={18} height={18} />

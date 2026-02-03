@@ -19,6 +19,7 @@ interface ToolbarProps {
   selectedModelId?: string | null;
   onSaveToLibrary?: () => void | Promise<void>;
   isSavingToLibrary?: boolean;
+  isUnfavouriting?: boolean;
   isModelFavorited?: boolean;
 }
 
@@ -30,6 +31,7 @@ export function Toolbar({
   selectedModelId,
   onSaveToLibrary,
   isSavingToLibrary,
+  isUnfavouriting,
   isModelFavorited,
 }: ToolbarProps) {
   const handleToolSelect = (tool: ToolType) => {
@@ -157,38 +159,26 @@ export function Toolbar({
           {selectedModelId && onSaveToLibrary && (
             <>
               <div className="w-px h-8 bg-white/20" />
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <button
-                    onClick={() => onSaveToLibrary()}
-                    disabled={isSavingToLibrary || isModelFavorited}
-                    className={`flex flex-col items-center gap-1 p-3 rounded-lg transition-all w-14 border ${
-                      isModelFavorited
-                        ? "bg-emerald-500/20 text-white border-emerald-400/40"
-                        : "bg-emerald-500/40 text-white hover:bg-emerald-500/60 border-emerald-400/50"
-                    } disabled:opacity-50`}
-                  >
-                    <UploadIcon width={20} height={20} />
-                    <span className="text-xs font-medium font-serif italic">
-                      {isModelFavorited
-                        ? "Saved"
-                        : isSavingToLibrary
-                        ? "Saving…"
-                        : "Save to library"}
-                    </span>
-                  </button>
-                </Tooltip.Trigger>
-                <Tooltip.Content
-                  className="select-none rounded-lg bg-black/40 backdrop-blur-md border border-white/10 px-4 py-2 text-sm font-medium text-white shadow-xl z-50"
-                  side="bottom"
-                  sideOffset={5}
-                >
+              <button
+                onClick={() => onSaveToLibrary()}
+                disabled={isSavingToLibrary || isUnfavouriting}
+                className={`flex flex-col items-center gap-1 p-3 rounded-lg transition-all w-14 border ${
+                  isModelFavorited
+                    ? "bg-amber-500/30 text-amber-200 border-amber-400/40 hover:bg-amber-500/40"
+                    : "bg-emerald-500/40 text-white hover:bg-emerald-500/60 border-emerald-400/50"
+                } disabled:opacity-50`}
+              >
+                <UploadIcon width={20} height={20} />
+                <span className="text-xs font-medium font-serif italic">
                   {isModelFavorited
-                    ? "This model is already in the public library"
-                    : "Save this model to the public library"}
-                  <Tooltip.Arrow className="fill-white/10" />
-                </Tooltip.Content>
-              </Tooltip.Root>
+                    ? isUnfavouriting
+                      ? "Removing…"
+                      : "Remove"
+                    : isSavingToLibrary
+                    ? "Saving…"
+                    : "Save to library"}
+                </span>
+              </button>
             </>
           )}
         </div>

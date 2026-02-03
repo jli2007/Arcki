@@ -46,6 +46,8 @@ interface PendingModel {
   rotationZ: number;
   isFavorited?: boolean;
   generatedFrom?: string;
+  supabaseModelId?: string;
+  supabaseGlbUrl?: string;
 }
 
 interface InsertedModel {
@@ -61,6 +63,8 @@ interface InsertedModel {
   rotationZ: number;
   isFavorited?: boolean;
   generatedFrom?: string;
+  supabaseModelId?: string;
+  supabaseGlbUrl?: string;
 }
 
 async function reverseGeocode(
@@ -149,6 +153,7 @@ export default function MapPage() {
   const [showBugReportModal, setShowBugReportModal] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
   const [savingModelId, setSavingModelId] = useState<string | null>(null);
+  const [unfavouritingModelId, setUnfavouritingModelId] = useState<string | null>(null);
 
   // Show tutorial on first visit
   useEffect(() => {
@@ -765,25 +770,28 @@ export default function MapPage() {
         .from("models")
         .getPublicUrl(filename);
 
-      const { error: insertError } = await supabase.from("models").insert({
-        name: model.generatedFrom || model.name || "3D model",
-        glb_url: publicUrl,
-        thumbnail_url: "",
-        category: "User Saved",
-        file_size: file.size,
-        user: "anonymous",
-      });
+      const { data: inserted, error: insertError } = await supabase
+        .from("models")
+        .insert({
+          name: model.generatedFrom || model.name || "3D model",
+          description: null,
+          glb_url: publicUrl,
+          thumbnail_url: "",
+          category: "User Saved",
+          file_size: file.size,
+        })
+        .select("id, glb_url")
+        .single();
       if (insertError) throw insertError;
+      if (!inserted) throw new Error("Insert failed");
 
       setInsertedModels(prev => {
-        const updated = prev.map(m => m.id === model.id ? { ...m, isFavorited: true } : m);
+        const updated = prev.map(m =>
+          m.id === model.id
+            ? { ...m, isFavorited: true, supabaseModelId: inserted.id, supabaseGlbUrl: inserted.glb_url }
+            : m
+        );
         return updated;
-      });
-
-      notify({
-        title: "Saved to public library",
-        description: model.name || undefined,
-        variant: "success",
       });
     } catch (e) {
       console.error(e);
@@ -797,12 +805,53 @@ export default function MapPage() {
     }
   }, []);
 
+  const handleUnfavourite = useCallback(async (model: InsertedModel) => {
+    if (!model.supabaseModelId) return;
+    setUnfavouritingModelId(model.id);
+    try {
+      const { error: deleteError } = await supabase.from("models").delete().eq("id", model.supabaseModelId);
+      if (deleteError) throw deleteError;
+
+      const glbUrl = model.supabaseGlbUrl || model.modelUrl;
+      if (glbUrl && glbUrl.includes("supabase") && glbUrl.includes("/models/")) {
+        try {
+          const path = glbUrl.split("/models/").pop()?.split("?")[0];
+          if (path) {
+            await supabase.storage.from("models").remove([path]);
+          }
+        } catch (storageErr) {
+          console.warn("Storage cleanup failed:", storageErr);
+        }
+      }
+
+      setInsertedModels(prev => {
+        const updated = prev.map(m =>
+          m.id === model.id ? { ...m, isFavorited: false, supabaseModelId: undefined, supabaseGlbUrl: undefined } : m
+        );
+        return updated;
+      });
+    } catch (e) {
+      console.error(e);
+      notify({
+        title: "Failed to remove from library",
+        description: e instanceof Error ? e.message : "Unknown error",
+        variant: "error",
+      });
+    } finally {
+      setUnfavouritingModelId(null);
+    }
+  }, [notify]);
+
   const handleSaveSelectedToLibrary = useCallback(async () => {
     if (!selectedModelId) return;
     const model = insertedModels.find((m) => m.id === selectedModelId);
-    if (!model || model.isFavorited) return;
-    await handleSaveToLibrary(model);
-  }, [selectedModelId, insertedModels, handleSaveToLibrary]);
+    if (!model) return;
+    if (model.isFavorited) {
+      await handleUnfavourite(model);
+    } else {
+      await handleSaveToLibrary(model);
+    }
+  }, [selectedModelId, insertedModels, handleSaveToLibrary, handleUnfavourite]);
 
   useEffect(() => {
     const handleWindowError = (e: ErrorEvent) => {
@@ -846,6 +895,21 @@ export default function MapPage() {
   }, [handleDeleteModel]);
 
   const handleUpdateModel = useCallback((modelId: string, updates: { name?: string; scale?: number; positionX?: number; positionY?: number; height?: number; heightLocked?: boolean; rotationX?: number; rotationY?: number; rotationZ?: number }) => {
+    if (updates.name !== undefined) {
+      const model = insertedModelsRef.current.find(m => m.id === modelId);
+      if (model?.supabaseModelId) {
+        supabase
+          .from("models")
+          .update({ name: updates.name })
+          .eq("id", model.supabaseModelId)
+          .then(({ error }) => {
+            if (error) {
+              notify({ title: "Failed to update name in library", description: error.message, variant: "error" });
+            }
+          });
+      }
+    }
+
     setInsertedModels(prev => {
       const updated = prev.map(m => {
         if (m.id !== modelId) return m;
@@ -886,7 +950,7 @@ export default function MapPage() {
       updateModelsSource(updated);
       return updated;
     });
-  }, [updateModelsSource]);
+  }, [updateModelsSource, notify]);
 
   const updateGizmoPosition = useCallback((modelId: string) => {
     if (!map.current) return;
@@ -1051,6 +1115,8 @@ export default function MapPage() {
       rotationZ: pending.rotationZ,
       isFavorited: pending.isFavorited ?? false,
       generatedFrom: pending.generatedFrom,
+      supabaseModelId: pending.supabaseModelId,
+      supabaseGlbUrl: pending.supabaseGlbUrl,
     };
 
     setInsertedModels(prev => {
@@ -1492,6 +1558,7 @@ export default function MapPage() {
         selectedModelId={selectedModelId}
         onSaveToLibrary={handleSaveSelectedToLibrary}
         isSavingToLibrary={savingModelId !== null}
+        isUnfavouriting={unfavouritingModelId !== null}
         isModelFavorited={selectedModel?.isFavorited ?? false}
       />
       <WeatherPanel
@@ -1545,7 +1612,9 @@ export default function MapPage() {
         onFlyTo={handleFlyToModel}
         onDelete={handleDeleteModel}
         onSaveToLibrary={handleSaveToLibrary}
+        onUnfavourite={handleUnfavourite}
         savingModelId={savingModelId}
+        unfavouritingModelId={unfavouritingModelId}
         onUpdateModel={handleUpdateModel}
       />
       <Prompt3DGenerator
