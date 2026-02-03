@@ -8,7 +8,6 @@ import "@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css";
 import area from "@turf/area";
 import bbox from "@turf/bbox";
 import { Toolbar } from "@/components/Toolbar";
-import { useToast } from "@/components/ToastProvider";
 import { WeatherPanel } from "@/components/panels/WeatherPanel";
 import { BuildingDetailsPanel } from "@/components/panels/BuildingDetailsPanel";
 import { InsertModelModal } from "@/components/modals/InsertModelModal";
@@ -130,7 +129,6 @@ function calculateFrontView(
 export default function MapPage() {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
-  const { notify } = useToast();
   const drawRef = useRef<MapboxDraw | null>(null);
   const [activeTool, setActiveTool] = useState<"select" | "draw" | "insert" | null>(null);
   const [selectedBuilding, setSelectedBuilding] = useState<SelectedBuilding | null>(null);
@@ -553,15 +551,7 @@ export default function MapPage() {
         })
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ detail: response.statusText }));
-        notify({
-          title: "Search failed",
-          description: errorData.detail || response.statusText,
-          variant: "error",
-        });
-        return;
-      }
+      if (!response.ok) return;
 
       const data = await response.json();
       setSearchResult(data);
@@ -589,28 +579,10 @@ export default function MapPage() {
       
     } catch (error) {
       console.error("Search error:", error);
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      let apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-      if (!apiUrl.startsWith("http://") && !apiUrl.startsWith("https://")) {
-        apiUrl = `http://${apiUrl}`;
-      }
-      if (errorMessage.includes("Failed to fetch") || errorMessage.includes("NetworkError")) {
-        notify({
-          title: "Cannot reach backend",
-          description: `Make sure the server is running on ${apiUrl}`,
-          variant: "error",
-        });
-      } else {
-        notify({
-          title: "Search failed",
-          description: errorMessage,
-          variant: "error",
-        });
-      }
     } finally {
       setIsSearching(false);
     }
-  }, [searchQuery, dispatchAgentAction, notify]);
+  }, [searchQuery, dispatchAgentAction]);
 
   useEffect(() => {
     if (activeTool !== "select" && selectedBuilding) {
@@ -744,7 +716,7 @@ export default function MapPage() {
       updateModelsSource(updated);
       return updated;
     });
-  }, [notify, updateModelsSource]);
+  }, [updateModelsSource]);
 
   const handleSaveToLibrary = useCallback(async (model: InsertedModel) => {
     setSavingModelId(model.id);
@@ -795,11 +767,6 @@ export default function MapPage() {
       });
     } catch (e) {
       console.error(e);
-      notify({
-        title: "Failed to save model",
-        description: e instanceof Error ? e.message : "Unknown error",
-        variant: "error",
-      });
     } finally {
       setSavingModelId(null);
     }
@@ -832,15 +799,10 @@ export default function MapPage() {
       });
     } catch (e) {
       console.error(e);
-      notify({
-        title: "Failed to remove from library",
-        description: e instanceof Error ? e.message : "Unknown error",
-        variant: "error",
-      });
     } finally {
       setUnfavouritingModelId(null);
     }
-  }, [notify]);
+  }, []);
 
   const handleSaveSelectedToLibrary = useCallback(async () => {
     if (!selectedModelId) return;
@@ -864,11 +826,6 @@ export default function MapPage() {
             const updated = prev.slice(0, -1);
             updateModelsSource(updated);
             return updated;
-          });
-          notify({
-            title: "Failed to render 3D model",
-            description: "The file may be corrupted — try generating again.",
-            variant: "error",
           });
         }
       }
@@ -903,9 +860,7 @@ export default function MapPage() {
           .update({ name: updates.name })
           .eq("id", model.supabaseModelId)
           .then(({ error }) => {
-            if (error) {
-              notify({ title: "Failed to update name in library", description: error.message, variant: "error" });
-            }
+            if (error) console.error("Failed to update name in library:", error.message);
           });
       }
     }
@@ -950,7 +905,7 @@ export default function MapPage() {
       updateModelsSource(updated);
       return updated;
     });
-  }, [updateModelsSource, notify]);
+  }, [updateModelsSource]);
 
   const updateGizmoPosition = useCallback((modelId: string) => {
     if (!map.current) return;
@@ -1408,11 +1363,6 @@ export default function MapPage() {
                 return updated;
               });
 
-              notify({
-                title: "Failed to load 3D model",
-                description: "The generated file may be corrupted. Please try generating again.",
-                variant: "error",
-              });
             }
           });
         } catch (err) {

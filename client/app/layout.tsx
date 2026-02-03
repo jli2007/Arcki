@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import Script from "next/script";
 import { inter, playfair } from "@/lib/fonts";
 import "./globals.css";
-import { ToastProvider } from "@/components/ToastProvider";
 
 export const metadata: Metadata = {
   title: "Arcki",
@@ -22,8 +21,7 @@ export default function RootLayout({
         <link rel="preconnect" href="https://events.mapbox.com" />
       </head>
       <body className="antialiased">
-        <ToastProvider>
-          <Script
+        <Script
             id="google-tag-manager"
             strategy="afterInteractive"
             dangerouslySetInnerHTML={{
@@ -43,7 +41,6 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             />
           </noscript>
           {children}
-        </ToastProvider>
       </body>
     </html>
   );
