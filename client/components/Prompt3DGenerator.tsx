@@ -15,6 +15,8 @@ interface PendingModel {
   rotationX: number;
   rotationY: number;
   rotationZ: number;
+  isFavorited?: boolean;
+  generatedFrom?: string;
 }
 
 interface Prompt3DGeneratorProps {
@@ -283,17 +285,7 @@ export function Prompt3DGenerator({ isVisible, onClose, onRequestExpand, onPlace
 
       const blob = await response.blob();
       const file = new File([blob], modelFile || "model.glb", { type: "model/gltf-binary" });
-
-      // Upload to Supabase first so we can use the public URL for Mapbox, loaded by worker
-      let modelUrl = URL.createObjectURL(blob);
-      if (previewResult && threeDJob) {
-        try {
-          const publicUrl = await uploadToLibrary(file, previewResult);
-          if (publicUrl) modelUrl = publicUrl;
-        } catch (err) {
-          console.error('Failed to upload generated model to library:', err);
-        }
-      }
+      const modelUrl = URL.createObjectURL(blob);
 
       onPlaceModel({
         file,
@@ -302,6 +294,8 @@ export function Prompt3DGenerator({ isVisible, onClose, onRequestExpand, onPlace
         rotationX: 0,
         rotationY: 0,
         rotationZ: 0,
+        isFavorited: false,
+        generatedFrom: previewResult?.cleaned_prompt?.substring(0, 100),
       });
 
       localStorage.removeItem(STORAGE_KEY);
@@ -359,9 +353,7 @@ export function Prompt3DGenerator({ isVisible, onClose, onRequestExpand, onPlace
               .getPublicUrl(thumbnailFilename);
             thumbnailUrl = publicUrl;
           }
-        } catch {
-          console.log('Failed to upload thumbnail, using placeholder');
-        }
+        } catch {}
       }
 
       const { error: insertError } = await supabase
@@ -376,7 +368,6 @@ export function Prompt3DGenerator({ isVisible, onClose, onRequestExpand, onPlace
         });
 
       if (insertError) throw insertError;
-      console.log('Successfully uploaded generated model to library');
       return glbUrl;
     } catch (error) {
       throw error;

@@ -7,6 +7,8 @@ import {
   TargetIcon,
   LockClosedIcon,
   LockOpen1Icon,
+  StarIcon,
+  StarFilledIcon,
 } from "@radix-ui/react-icons";
 
 interface InsertedModel {
@@ -20,6 +22,8 @@ interface InsertedModel {
   rotationX: number;
   rotationY: number;
   rotationZ: number;
+  isFavorited?: boolean;
+  generatedFrom?: string;
 }
 
 interface AssetManagerPanelProps {
@@ -27,6 +31,8 @@ interface AssetManagerPanelProps {
   onClose: () => void;
   onFlyTo: (position: [number, number]) => void;
   onDelete: (id: string) => void;
+  onSaveToLibrary?: (model: InsertedModel) => Promise<void>;
+  savingModelId?: string | null;
   onUpdateModel: (
     id: string,
     updates: {
@@ -47,6 +53,8 @@ export function AssetManagerPanel({
   models,
   onFlyTo,
   onDelete,
+  onSaveToLibrary,
+  savingModelId,
   onUpdateModel,
 }: AssetManagerPanelProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -153,6 +161,34 @@ export function AssetManagerPanel({
                         title="Click to rename"
                       >
                         {model.name || `Model ${index + 1}`}
+                      </button>
+                    )}
+                    {onSaveToLibrary && (
+                      <button
+                        onClick={async () => {
+                          if (savingModelId === model.id || model.isFavorited) return;
+                          await onSaveToLibrary(model);
+                        }}
+                        disabled={savingModelId === model.id || !!model.isFavorited}
+                        className={`shrink-0 p-1.5 rounded-md transition-all ${
+                          model.isFavorited
+                            ? "text-amber-400 bg-amber-500/20"
+                            : "text-amber-400 hover:text-amber-300 hover:bg-amber-500/20"
+                        } disabled:opacity-50`}
+                        title={
+                          model.isFavorited
+                            ? "Already saved to public library"
+                            : savingModelId === model.id
+                            ? "Saving to public library..."
+                            : "Save to public library (favourite)"
+                        }
+                        aria-label="Save to public library"
+                      >
+                        {model.isFavorited ? (
+                          <StarFilledIcon width={18} height={18} />
+                        ) : (
+                          <StarIcon width={18} height={18} />
+                        )}
                       </button>
                     )}
                   </div>
@@ -285,7 +321,7 @@ export function AssetManagerPanel({
                     </button>
                   </div>
                 </div>
-                <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="flex gap-0.5 shrink-0">
                   <button
                     onClick={() => onFlyTo(model.position)}
                     className="p-1.5 rounded-md hover:bg-white/10 text-white/60 hover:text-white transition-all"

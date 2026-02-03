@@ -8,6 +8,7 @@ import {
   MagnifyingGlassIcon,
 } from "@radix-ui/react-icons";
 import { supabase } from "@/lib/supabase";
+import { useToast } from "@/components/ToastProvider";
 import { ModelThumbnail } from "../ModelThumbnail";
 
 interface PendingModel {
@@ -17,6 +18,8 @@ interface PendingModel {
   rotationX: number;
   rotationY: number;
   rotationZ: number;
+  isFavorited?: boolean;
+  generatedFrom?: string;
 }
 
 interface LibraryModel {
@@ -44,6 +47,7 @@ export function InsertModelModal({
   const [isLoadingLibrary, setIsLoadingLibrary] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { notify } = useToast();
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -136,10 +140,15 @@ export function InsertModelModal({
         rotationX: 0,
         rotationY: 0,
         rotationZ: 0,
+        isFavorited: true,
       });
     } catch (error) {
       console.error("Failed to upload:", error);
-      alert("Failed to upload to library. Model will still be placed.");
+      notify({
+        title: "Upload failed",
+        description: "Model will still be placed on the map.",
+        variant: "error",
+      });
 
       onPlaceModel({
         file: selectedFile,
@@ -148,6 +157,7 @@ export function InsertModelModal({
         rotationX: 0,
         rotationY: 0,
         rotationZ: 0,
+        isFavorited: false,
       });
     } finally {
       setIsUploading(false);
@@ -167,6 +177,7 @@ export function InsertModelModal({
       rotationX: 0,
       rotationY: 0,
       rotationZ: 0,
+      isFavorited: true,
     });
   };
 

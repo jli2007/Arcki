@@ -8,6 +8,7 @@ import "@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css";
 import area from "@turf/area";
 import bbox from "@turf/bbox";
 import { Toolbar } from "@/components/Toolbar";
+import { useToast } from "@/components/ToastProvider";
 import { WeatherPanel } from "@/components/panels/WeatherPanel";
 import { BuildingDetailsPanel } from "@/components/panels/BuildingDetailsPanel";
 import { InsertModelModal } from "@/components/modals/InsertModelModal";
@@ -20,6 +21,7 @@ import { MapControls } from "@/components/MapControls";
 import { GitHubLogoIcon, ExclamationTriangleIcon } from "@radix-ui/react-icons";
 import { BugReportModal } from "@/components/modals/BugReportModal";
 import { Tutorial, shouldShowTutorial } from "@/components/Tutorial";
+import { supabase } from "@/lib/supabase";
 
 interface SelectedBuilding {
   id: string | number;
@@ -42,6 +44,8 @@ interface PendingModel {
   rotationX: number;
   rotationY: number;
   rotationZ: number;
+  isFavorited?: boolean;
+  generatedFrom?: string;
 }
 
 interface InsertedModel {
@@ -55,6 +59,8 @@ interface InsertedModel {
   rotationX: number;
   rotationY: number;
   rotationZ: number;
+  isFavorited?: boolean;
+  generatedFrom?: string;
 }
 
 async function reverseGeocode(
@@ -120,6 +126,7 @@ function calculateFrontView(
 export default function MapPage() {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
+  const { notify } = useToast();
   const drawRef = useRef<MapboxDraw | null>(null);
   const [activeTool, setActiveTool] = useState<"select" | "draw" | "insert" | null>(null);
   const [selectedBuilding, setSelectedBuilding] = useState<SelectedBuilding | null>(null);
@@ -141,6 +148,7 @@ export default function MapPage() {
   const [isSearching, setIsSearching] = useState(false);
   const [showBugReportModal, setShowBugReportModal] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
+  const [savingModelId, setSavingModelId] = useState<string | null>(null);
 
   // Show tutorial on first visit
   useEffect(() => {
@@ -542,7 +550,11 @@ export default function MapPage() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ detail: response.statusText }));
-        alert(`Search failed: ${errorData.detail || response.statusText}`);
+        notify({
+          title: "Search failed",
+          description: errorData.detail || response.statusText,
+          variant: "error",
+        });
         return;
       }
 
@@ -578,14 +590,22 @@ export default function MapPage() {
         apiUrl = `http://${apiUrl}`;
       }
       if (errorMessage.includes("Failed to fetch") || errorMessage.includes("NetworkError")) {
-        alert(`Cannot connect to backend server. Make sure it's running on ${apiUrl}`);
+        notify({
+          title: "Cannot reach backend",
+          description: `Make sure the server is running on ${apiUrl}`,
+          variant: "error",
+        });
       } else {
-        alert(`Search failed: ${errorMessage}`);
+        notify({
+          title: "Search failed",
+          description: errorMessage,
+          variant: "error",
+        });
       }
     } finally {
       setIsSearching(false);
     }
-  }, [searchQuery, dispatchAgentAction]);
+  }, [searchQuery, dispatchAgentAction, notify]);
 
   useEffect(() => {
     if (activeTool !== "select" && selectedBuilding) {
@@ -719,7 +739,70 @@ export default function MapPage() {
       updateModelsSource(updated);
       return updated;
     });
-  }, [updateModelsSource]);
+  }, [notify, updateModelsSource]);
+
+  const handleSaveToLibrary = useCallback(async (model: InsertedModel) => {
+    setSavingModelId(model.id);
+    try {
+      const res = await fetch(model.modelUrl);
+      if (!res.ok) throw new Error("Failed to fetch model");
+      const blob = await res.blob();
+      const file = new File([blob], `${model.name || "model"}.glb`, {
+        type: "model/gltf-binary",
+      });
+      const timestamp = Date.now();
+      const filename = `${timestamp}-${(model.name || "model").replace(/[^a-zA-Z0-9.-]/g, "_")}.glb`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("models")
+        .upload(filename, file, {
+          contentType: "model/gltf-binary",
+          cacheControl: "3600",
+        });
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from("models")
+        .getPublicUrl(filename);
+
+      const { error: insertError } = await supabase.from("models").insert({
+        name: model.generatedFrom || model.name || "3D model",
+        glb_url: publicUrl,
+        thumbnail_url: "",
+        category: "User Saved",
+        file_size: file.size,
+        user: "anonymous",
+      });
+      if (insertError) throw insertError;
+
+      setInsertedModels(prev => {
+        const updated = prev.map(m => m.id === model.id ? { ...m, isFavorited: true } : m);
+        return updated;
+      });
+
+      notify({
+        title: "Saved to public library",
+        description: model.name || undefined,
+        variant: "success",
+      });
+    } catch (e) {
+      console.error(e);
+      notify({
+        title: "Failed to save model",
+        description: e instanceof Error ? e.message : "Unknown error",
+        variant: "error",
+      });
+    } finally {
+      setSavingModelId(null);
+    }
+  }, []);
+
+  const handleSaveSelectedToLibrary = useCallback(async () => {
+    if (!selectedModelId) return;
+    const model = insertedModels.find((m) => m.id === selectedModelId);
+    if (!model || model.isFavorited) return;
+    await handleSaveToLibrary(model);
+  }, [selectedModelId, insertedModels, handleSaveToLibrary]);
 
   useEffect(() => {
     const handleWindowError = (e: ErrorEvent) => {
@@ -733,7 +816,11 @@ export default function MapPage() {
             updateModelsSource(updated);
             return updated;
           });
-          alert("Failed to render 3D model. The file may be corrupted — try generating again.");
+          notify({
+            title: "Failed to render 3D model",
+            description: "The file may be corrupted — try generating again.",
+            variant: "error",
+          });
         }
       }
     };
@@ -953,6 +1040,7 @@ export default function MapPage() {
     
     const newModel: InsertedModel = {
       id: `model-${Date.now()}`,
+      name: pending.generatedFrom,
       position: [e.lngLat.lng, e.lngLat.lat],
       height: groundHeight,
       heightLocked: false,
@@ -961,6 +1049,8 @@ export default function MapPage() {
       rotationX: pending.rotationX,
       rotationY: pending.rotationY,
       rotationZ: pending.rotationZ,
+      isFavorited: pending.isFavorited ?? false,
+      generatedFrom: pending.generatedFrom,
     };
 
     setInsertedModels(prev => {
@@ -1252,7 +1342,11 @@ export default function MapPage() {
                 return updated;
               });
 
-              alert("Failed to load 3D model. The generated file may be corrupted. Please try generating again.");
+              notify({
+                title: "Failed to load 3D model",
+                description: "The generated file may be corrupted. Please try generating again.",
+                variant: "error",
+              });
             }
           });
         } catch (err) {
@@ -1368,6 +1462,8 @@ export default function MapPage() {
     }
   }, [weather]);
 
+  const selectedModel = selectedModelId ? insertedModels.find(m => m.id === selectedModelId) : null;
+
   return (
     <div className="relative h-screen w-full">
       <a
@@ -1393,6 +1489,10 @@ export default function MapPage() {
         setActiveTool={handleSetActiveTool}
         showPromptGenerator={showPromptGenerator}
         onTogglePromptGenerator={() => setShowPromptGenerator(!showPromptGenerator)}
+        selectedModelId={selectedModelId}
+        onSaveToLibrary={handleSaveSelectedToLibrary}
+        isSavingToLibrary={savingModelId !== null}
+        isModelFavorited={selectedModel?.isFavorited ?? false}
       />
       <WeatherPanel
         lightMode={lightMode}
@@ -1444,6 +1544,8 @@ export default function MapPage() {
         onClose={() => {}}
         onFlyTo={handleFlyToModel}
         onDelete={handleDeleteModel}
+        onSaveToLibrary={handleSaveToLibrary}
+        savingModelId={savingModelId}
         onUpdateModel={handleUpdateModel}
       />
       <Prompt3DGenerator
