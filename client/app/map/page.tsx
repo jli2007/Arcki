@@ -1631,7 +1631,7 @@ export default function MapPage() {
       </div>
       
       {toastMessage && (
-        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg bg-white/10 backdrop-blur-md border border-white/20 text-white text-sm animate-in fade-in slide-in-from-bottom-2 duration-300">
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg bg-black/60 backdrop-blur-md border border-white/15 text-white text-sm">
           {toastMessage}
         </div>
       )}
