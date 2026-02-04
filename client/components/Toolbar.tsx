@@ -5,6 +5,7 @@ import {
   Pencil2Icon,
   CubeIcon,
   MagicWandIcon,
+  UploadIcon,
 } from "@radix-ui/react-icons";
 import * as Tooltip from "@radix-ui/react-tooltip";
 
@@ -15,6 +16,9 @@ interface ToolbarProps {
   setActiveTool: (tool: ToolType) => void;
   showPromptGenerator: boolean;
   onTogglePromptGenerator: () => void;
+  selectedModelId?: string | null;
+  onSaveToLibrary?: () => void | Promise<void>;
+  isModelFavorited?: boolean;
 }
 
 export function Toolbar({
@@ -22,6 +26,9 @@ export function Toolbar({
   setActiveTool,
   showPromptGenerator,
   onTogglePromptGenerator,
+  selectedModelId,
+  onSaveToLibrary,
+  isModelFavorited,
 }: ToolbarProps) {
   const handleToolSelect = (tool: ToolType) => {
     if (showPromptGenerator) onTogglePromptGenerator();
@@ -144,6 +151,25 @@ export function Toolbar({
               <Tooltip.Arrow className="fill-white/10" />
             </Tooltip.Content>
           </Tooltip.Root>
+
+          {selectedModelId && onSaveToLibrary && (
+            <>
+              <div className="w-px h-8 bg-white/20" />
+              <button
+                onClick={() => onSaveToLibrary()}
+                className={`flex flex-col items-center gap-1 p-3 rounded-lg transition-all w-14 border ${
+                  isModelFavorited
+                    ? "bg-amber-500/30 text-amber-200 border-amber-400/40 hover:bg-amber-500/40"
+                    : "bg-emerald-500/40 text-white hover:bg-emerald-500/60 border-emerald-400/50"
+                }`}
+              >
+                <UploadIcon width={20} height={20} />
+                <span className="text-xs font-medium font-serif italic">
+                  {isModelFavorited ? "Saved" : "Save"}
+                </span>
+              </button>
+            </>
+          )}
         </div>
       </div>
     </Tooltip.Provider>

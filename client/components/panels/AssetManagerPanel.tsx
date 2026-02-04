@@ -4,9 +4,11 @@ import { useState } from "react";
 import {
   CubeIcon,
   TrashIcon,
-  TargetIcon,
+  MagnifyingGlassIcon,
   LockClosedIcon,
   LockOpen1Icon,
+  StarIcon,
+  StarFilledIcon,
 } from "@radix-ui/react-icons";
 
 interface InsertedModel {
@@ -20,6 +22,10 @@ interface InsertedModel {
   rotationX: number;
   rotationY: number;
   rotationZ: number;
+  isFavorited?: boolean;
+  generatedFrom?: string;
+  supabaseModelId?: string;
+  supabaseGlbUrl?: string;
 }
 
 interface AssetManagerPanelProps {
@@ -27,6 +33,7 @@ interface AssetManagerPanelProps {
   onClose: () => void;
   onFlyTo: (position: [number, number]) => void;
   onDelete: (id: string) => void;
+  onSaveToLibrary?: (model: InsertedModel) => Promise<void>;
   onUpdateModel: (
     id: string,
     updates: {
@@ -47,6 +54,7 @@ export function AssetManagerPanel({
   models,
   onFlyTo,
   onDelete,
+  onSaveToLibrary,
   onUpdateModel,
 }: AssetManagerPanelProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -153,6 +161,25 @@ export function AssetManagerPanel({
                         title="Click to rename"
                       >
                         {model.name || `Model ${index + 1}`}
+                      </button>
+                    )}
+                    {onSaveToLibrary && (
+                      <button
+                        onClick={() => {
+                          if (!model.isFavorited) onSaveToLibrary(model);
+                        }}
+                        className={`shrink-0 p-1.5 rounded-md transition-all ${
+                          model.isFavorited
+                            ? "text-amber-400 bg-amber-500/20"
+                            : "text-white/40 hover:text-amber-400 hover:bg-amber-500/20"
+                        }`}
+                        aria-label={model.isFavorited ? "In public library" : "Save to public library"}
+                      >
+                        {model.isFavorited ? (
+                          <StarFilledIcon width={18} height={18} />
+                        ) : (
+                          <StarIcon width={18} height={18} />
+                        )}
                       </button>
                     )}
                   </div>
@@ -285,13 +312,13 @@ export function AssetManagerPanel({
                     </button>
                   </div>
                 </div>
-                <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="flex gap-0.5 shrink-0">
                   <button
                     onClick={() => onFlyTo(model.position)}
                     className="p-1.5 rounded-md hover:bg-white/10 text-white/60 hover:text-white transition-all"
                     title="Fly to model"
                   >
-                    <TargetIcon width={14} height={14} />
+                    <MagnifyingGlassIcon width={14} height={14} />
                   </button>
                   <button
                     onClick={() => onDelete(model.id)}

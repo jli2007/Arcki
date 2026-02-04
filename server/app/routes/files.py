@@ -68,7 +68,7 @@ async def cleanup_files():
     settings = get_settings()
 
     try:
-        for directory in [settings.upload_dir, settings.output_dir, settings.cache_dir]:
+        for directory in [settings.output_dir, settings.cache_dir]:
             for file in directory.glob("*"):
                 if file.is_file():
                     file.unlink()

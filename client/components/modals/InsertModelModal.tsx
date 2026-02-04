@@ -17,6 +17,10 @@ interface PendingModel {
   rotationX: number;
   rotationY: number;
   rotationZ: number;
+  isFavorited?: boolean;
+  generatedFrom?: string;
+  supabaseModelId?: string;
+  supabaseGlbUrl?: string;
 }
 
 interface LibraryModel {
@@ -24,7 +28,7 @@ interface LibraryModel {
   name: string;
   thumbnail_url: string;
   glb_url: string;
-  category?: string;
+  saved_at?: string;
 }
 
 interface InsertModelModalProps {
@@ -42,7 +46,6 @@ export function InsertModelModal({
   const [searchQuery, setSearchQuery] = useState("");
   const [libraryModels, setLibraryModels] = useState<LibraryModel[]>([]);
   const [isLoadingLibrary, setIsLoadingLibrary] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -99,63 +102,18 @@ export function InsertModelModal({
   const handlePlaceModel = async () => {
     if (!selectedFile || !fileUrl) return;
 
-    setIsUploading(true);
-    try {
-      const timestamp = Date.now();
-      const filename = `${timestamp}-${selectedFile.name.replace(/[^a-zA-Z0-9.-]/g, "_")}`;
-
-      // Upload GLB to storage
-      const { error: uploadError } = await supabase.storage
-        .from("models")
-        .upload(filename, selectedFile, {
-          contentType: "model/gltf-binary",
-          cacheControl: "3600",
-        });
-
-      if (uploadError) throw uploadError;
-
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from("models").getPublicUrl(filename);
-
-      const { error: insertError } = await supabase.from("models").insert({
-        name: selectedFile.name.replace(".glb", ""),
-        glb_url: publicUrl,
-        thumbnail_url: "",
-        category: "User Upload",
-        file_size: selectedFile.size,
-      });
-
-      if (insertError) throw insertError;
-
-      // Place on map using the Supabase public URL
-      onPlaceModel({
-        file: selectedFile,
-        url: publicUrl,
-        scale: 25,
-        rotationX: 0,
-        rotationY: 0,
-        rotationZ: 0,
-      });
-    } catch (error) {
-      console.error("Failed to upload:", error);
-      alert("Failed to upload to library. Model will still be placed.");
-
-      onPlaceModel({
-        file: selectedFile,
-        url: fileUrl,
-        scale: 25,
-        rotationX: 0,
-        rotationY: 0,
-        rotationZ: 0,
-      });
-    } finally {
-      setIsUploading(false);
-    }
+    onPlaceModel({
+      file: selectedFile,
+      url: fileUrl,
+      scale: 25,
+      rotationX: 0,
+      rotationY: 0,
+      rotationZ: 0,
+      isFavorited: false,
+    });
   };
 
   const handleSelectLibraryModel = (model: LibraryModel) => {
-    // Pass the Supabase public URL directly: Mapbox GL loads models in a worker that can't access blob URLs
     const file = new File([], `${model.name}.glb`, {
       type: "model/gltf-binary",
     });
@@ -268,9 +226,9 @@ export function InsertModelModal({
                       <p className="text-white text-sm font-medium truncate">
                         {model.name}
                       </p>
-                      {model.category && (
+                      {model.saved_at && (
                         <p className="text-white/50 text-xs mt-0.5">
-                          {model.category}
+                          {new Date(model.saved_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
                         </p>
                       )}
                     </div>
@@ -333,17 +291,15 @@ export function InsertModelModal({
               <div className="mt-4 flex gap-3">
                 <button
                   onClick={onClose}
-                  disabled={isUploading}
-                  className="flex-1 px-4 py-2.5 rounded-lg bg-white/5 hover:bg-white/10 text-white/70 hover:text-white transition-all text-sm font-medium disabled:opacity-50"
+                  className="flex-1 px-4 py-2.5 rounded-lg bg-white/5 hover:bg-white/10 text-white/70 hover:text-white transition-all text-sm font-medium"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handlePlaceModel}
-                  disabled={isUploading}
-                  className="flex-1 px-4 py-2.5 rounded-lg bg-white hover:bg-white/90 text-black transition-all text-sm font-medium disabled:opacity-50"
+                  className="flex-1 px-4 py-2.5 rounded-lg bg-white hover:bg-white/90 text-black transition-all text-sm font-medium"
                 >
-                  {isUploading ? "Uploading..." : "Place Model"}
+                  Place Model
                 </button>
               </div>
             )}

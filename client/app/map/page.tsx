@@ -20,6 +20,7 @@ import { MapControls } from "@/components/MapControls";
 import { GitHubLogoIcon, ExclamationTriangleIcon } from "@radix-ui/react-icons";
 import { BugReportModal } from "@/components/modals/BugReportModal";
 import { Tutorial, shouldShowTutorial } from "@/components/Tutorial";
+import { supabase } from "@/lib/supabase";
 
 interface SelectedBuilding {
   id: string | number;
@@ -42,6 +43,10 @@ interface PendingModel {
   rotationX: number;
   rotationY: number;
   rotationZ: number;
+  isFavorited?: boolean;
+  generatedFrom?: string;
+  supabaseModelId?: string;
+  supabaseGlbUrl?: string;
 }
 
 interface InsertedModel {
@@ -55,6 +60,10 @@ interface InsertedModel {
   rotationX: number;
   rotationY: number;
   rotationZ: number;
+  isFavorited?: boolean;
+  generatedFrom?: string;
+  supabaseModelId?: string;
+  supabaseGlbUrl?: string;
 }
 
 async function reverseGeocode(
@@ -141,6 +150,7 @@ export default function MapPage() {
   const [isSearching, setIsSearching] = useState(false);
   const [showBugReportModal, setShowBugReportModal] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Show tutorial on first visit
   useEffect(() => {
@@ -540,11 +550,7 @@ export default function MapPage() {
         })
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ detail: response.statusText }));
-        alert(`Search failed: ${errorData.detail || response.statusText}`);
-        return;
-      }
+      if (!response.ok) return;
 
       const data = await response.json();
       setSearchResult(data);
@@ -572,16 +578,6 @@ export default function MapPage() {
       
     } catch (error) {
       console.error("Search error:", error);
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      let apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-      if (!apiUrl.startsWith("http://") && !apiUrl.startsWith("https://")) {
-        apiUrl = `http://${apiUrl}`;
-      }
-      if (errorMessage.includes("Failed to fetch") || errorMessage.includes("NetworkError")) {
-        alert(`Cannot connect to backend server. Make sure it's running on ${apiUrl}`);
-      } else {
-        alert(`Search failed: ${errorMessage}`);
-      }
     } finally {
       setIsSearching(false);
     }
@@ -721,6 +717,82 @@ export default function MapPage() {
     });
   }, [updateModelsSource]);
 
+  const handleSaveToLibrary = useCallback(async (model: InsertedModel) => {
+    // Optimistic: flip star immediately
+    setInsertedModels(prev =>
+      prev.map(m => m.id === model.id ? { ...m, isFavorited: true } : m)
+    );
+
+    try {
+      let glbUrl = model.supabaseGlbUrl;
+
+      // Only upload to storage if not already there
+      if (!glbUrl) {
+        const res = await fetch(model.modelUrl);
+        if (!res.ok) throw new Error("Failed to fetch model");
+        const blob = await res.blob();
+        const file = new File([blob], `${model.name || "model"}.glb`, {
+          type: "model/gltf-binary",
+        });
+        const timestamp = Date.now();
+        const filename = `${timestamp}-${(model.name || "model").replace(/[^a-zA-Z0-9.-]/g, "_")}.glb`;
+
+        const { error: uploadError } = await supabase.storage
+          .from("models")
+          .upload(filename, file, {
+            contentType: "model/gltf-binary",
+            cacheControl: "3600",
+          });
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from("models")
+          .getPublicUrl(filename);
+        glbUrl = publicUrl;
+      }
+
+      const { data: inserted, error: insertError } = await supabase
+        .from("models")
+        .insert({
+          name: model.generatedFrom || model.name || "3D model",
+          description: null,
+          glb_url: glbUrl,
+          thumbnail_url: "",
+          saved_at: new Date().toISOString(),
+          file_size: 0,
+        })
+        .select("id, glb_url")
+        .single();
+      if (insertError) throw insertError;
+      if (!inserted) throw new Error("Insert failed");
+
+      setInsertedModels(prev =>
+        prev.map(m =>
+          m.id === model.id
+            ? { ...m, supabaseModelId: inserted.id, supabaseGlbUrl: inserted.glb_url }
+            : m
+        )
+      );
+
+      setToastMessage("Added to public library");
+      setTimeout(() => setToastMessage(null), 3000);
+    } catch (e) {
+      // Revert optimistic update
+      setInsertedModels(prev =>
+        prev.map(m => m.id === model.id ? { ...m, isFavorited: false } : m)
+      );
+      console.error(e);
+    }
+  }, []);
+
+
+  const handleSaveSelectedToLibrary = useCallback(async () => {
+    if (!selectedModelId) return;
+    const model = insertedModels.find((m) => m.id === selectedModelId);
+    if (!model || model.isFavorited) return;
+    await handleSaveToLibrary(model);
+  }, [selectedModelId, insertedModels, handleSaveToLibrary]);
+
   useEffect(() => {
     const handleWindowError = (e: ErrorEvent) => {
       const msg = e.message || "";
@@ -733,7 +805,6 @@ export default function MapPage() {
             updateModelsSource(updated);
             return updated;
           });
-          alert("Failed to render 3D model. The file may be corrupted — try generating again.");
         }
       }
     };
@@ -759,6 +830,19 @@ export default function MapPage() {
   }, [handleDeleteModel]);
 
   const handleUpdateModel = useCallback((modelId: string, updates: { name?: string; scale?: number; positionX?: number; positionY?: number; height?: number; heightLocked?: boolean; rotationX?: number; rotationY?: number; rotationZ?: number }) => {
+    if (updates.name !== undefined) {
+      const model = insertedModelsRef.current.find(m => m.id === modelId);
+      if (model?.supabaseModelId) {
+        supabase
+          .from("models")
+          .update({ name: updates.name })
+          .eq("id", model.supabaseModelId)
+          .then(({ error }) => {
+            if (error) console.error("Failed to update name in library:", error.message);
+          });
+      }
+    }
+
     setInsertedModels(prev => {
       const updated = prev.map(m => {
         if (m.id !== modelId) return m;
@@ -953,6 +1037,7 @@ export default function MapPage() {
     
     const newModel: InsertedModel = {
       id: `model-${Date.now()}`,
+      name: pending.generatedFrom,
       position: [e.lngLat.lng, e.lngLat.lat],
       height: groundHeight,
       heightLocked: false,
@@ -961,6 +1046,10 @@ export default function MapPage() {
       rotationX: pending.rotationX,
       rotationY: pending.rotationY,
       rotationZ: pending.rotationZ,
+      isFavorited: pending.isFavorited ?? false,
+      generatedFrom: pending.generatedFrom,
+      supabaseModelId: pending.supabaseModelId,
+      supabaseGlbUrl: pending.supabaseGlbUrl,
     };
 
     setInsertedModels(prev => {
@@ -1252,7 +1341,6 @@ export default function MapPage() {
                 return updated;
               });
 
-              alert("Failed to load 3D model. The generated file may be corrupted. Please try generating again.");
             }
           });
         } catch (err) {
@@ -1368,6 +1456,8 @@ export default function MapPage() {
     }
   }, [weather]);
 
+  const selectedModel = selectedModelId ? insertedModels.find(m => m.id === selectedModelId) : null;
+
   return (
     <div className="relative h-screen w-full">
       <a
@@ -1393,6 +1483,9 @@ export default function MapPage() {
         setActiveTool={handleSetActiveTool}
         showPromptGenerator={showPromptGenerator}
         onTogglePromptGenerator={() => setShowPromptGenerator(!showPromptGenerator)}
+        selectedModelId={selectedModelId}
+        onSaveToLibrary={handleSaveSelectedToLibrary}
+        isModelFavorited={selectedModel?.isFavorited ?? false}
       />
       <WeatherPanel
         lightMode={lightMode}
@@ -1444,6 +1537,7 @@ export default function MapPage() {
         onClose={() => {}}
         onFlyTo={handleFlyToModel}
         onDelete={handleDeleteModel}
+        onSaveToLibrary={handleSaveToLibrary}
         onUpdateModel={handleUpdateModel}
       />
       <Prompt3DGenerator
@@ -1536,6 +1630,12 @@ export default function MapPage() {
         />
       </div>
       
+      {toastMessage && (
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg bg-black/60 backdrop-blur-md border border-white/15 text-white text-sm">
+          {toastMessage}
+        </div>
+      )}
+
       <div ref={mapContainer} className="h-full w-full" />
     </div>
   );
