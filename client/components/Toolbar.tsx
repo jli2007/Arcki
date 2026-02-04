@@ -18,8 +18,6 @@ interface ToolbarProps {
   onTogglePromptGenerator: () => void;
   selectedModelId?: string | null;
   onSaveToLibrary?: () => void | Promise<void>;
-  isSavingToLibrary?: boolean;
-  isUnfavouriting?: boolean;
   isModelFavorited?: boolean;
 }
 
@@ -30,8 +28,6 @@ export function Toolbar({
   onTogglePromptGenerator,
   selectedModelId,
   onSaveToLibrary,
-  isSavingToLibrary,
-  isUnfavouriting,
   isModelFavorited,
 }: ToolbarProps) {
   const handleToolSelect = (tool: ToolType) => {
@@ -161,22 +157,15 @@ export function Toolbar({
               <div className="w-px h-8 bg-white/20" />
               <button
                 onClick={() => onSaveToLibrary()}
-                disabled={isSavingToLibrary || isUnfavouriting}
                 className={`flex flex-col items-center gap-1 p-3 rounded-lg transition-all w-14 border ${
                   isModelFavorited
                     ? "bg-amber-500/30 text-amber-200 border-amber-400/40 hover:bg-amber-500/40"
                     : "bg-emerald-500/40 text-white hover:bg-emerald-500/60 border-emerald-400/50"
-                } disabled:opacity-50`}
+                }`}
               >
                 <UploadIcon width={20} height={20} />
                 <span className="text-xs font-medium font-serif italic">
-                  {isModelFavorited
-                    ? isUnfavouriting
-                      ? "Removing…"
-                      : "Remove"
-                    : isSavingToLibrary
-                    ? "Saving…"
-                    : "Save to library"}
+                  {isModelFavorited ? "Saved" : "Save"}
                 </span>
               </button>
             </>

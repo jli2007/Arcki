@@ -28,7 +28,7 @@ interface LibraryModel {
   name: string;
   thumbnail_url: string;
   glb_url: string;
-  category?: string;
+  saved_at?: string;
 }
 
 interface InsertModelModalProps {
@@ -125,9 +125,6 @@ export function InsertModelModal({
       rotationX: 0,
       rotationY: 0,
       rotationZ: 0,
-      isFavorited: true,
-      supabaseModelId: model.id,
-      supabaseGlbUrl: model.glb_url,
     });
   };
 
@@ -229,9 +226,9 @@ export function InsertModelModal({
                       <p className="text-white text-sm font-medium truncate">
                         {model.name}
                       </p>
-                      {model.category && (
+                      {model.saved_at && (
                         <p className="text-white/50 text-xs mt-0.5">
-                          {model.category}
+                          {new Date(model.saved_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
                         </p>
                       )}
                     </div>

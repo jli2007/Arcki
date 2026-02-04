@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from "react";
 import { Cross2Icon, CubeIcon, ReloadIcon, CheckCircledIcon, ExclamationTriangleIcon, ImageIcon, Pencil1Icon, ChevronLeftIcon, ChevronRightIcon, EnterFullScreenIcon, MinusIcon } from "@radix-ui/react-icons";
-import { supabase } from "@/lib/supabase";
 import Image from "next/image";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -311,66 +310,6 @@ export function Prompt3DGenerator({ isVisible, onClose, onRequestExpand, onPlace
       setError(e instanceof Error ? e.message : "Failed to load model");
       setIsPlacing(false);
       setWorkflowStage("preview");
-    }
-  };
-
-  const uploadToLibrary = async (file: File, preview: PreviewResult): Promise<string | null> => {
-    try {
-      const timestamp = Date.now();
-      const glbFilename = `${timestamp}-generated.glb`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('models')
-        .upload(glbFilename, file, {
-          contentType: 'model/gltf-binary',
-          cacheControl: '3600',
-        });
-
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl: glbUrl } } = supabase.storage
-        .from('models')
-        .getPublicUrl(glbFilename);
-
-      let thumbnailUrl = `https://placehold.co/200x200/1a1a1a/white?text=Generated`;
-
-      if (preview.image_urls && preview.image_urls.length > 0) {
-        try {
-          const thumbnailResponse = await fetch(preview.image_urls[0]);
-          const thumbnailBlob = await thumbnailResponse.blob();
-          const thumbnailFilename = `${timestamp}-thumbnail.jpg`;
-
-          const { error: thumbError } = await supabase.storage
-            .from('thumbnails')
-            .upload(thumbnailFilename, thumbnailBlob, {
-              contentType: 'image/jpeg',
-              cacheControl: '3600',
-            });
-
-          if (!thumbError) {
-            const { data: { publicUrl } } = supabase.storage
-              .from('thumbnails')
-              .getPublicUrl(thumbnailFilename);
-            thumbnailUrl = publicUrl;
-          }
-        } catch {}
-      }
-
-      const { error: insertError } = await supabase
-        .from('models')
-        .insert({
-          name: preview.cleaned_prompt.substring(0, 100),
-          description: `Generated from: "${preview.original_prompt}"`,
-          glb_url: glbUrl,
-          thumbnail_url: thumbnailUrl,
-          category: 'AI Generated',
-          file_size: file.size,
-        });
-
-      if (insertError) throw insertError;
-      return glbUrl;
-    } catch (error) {
-      throw error;
     }
   };
 

@@ -20,7 +20,6 @@ class Settings(BaseSettings):
     redis_url: str = ""
 
     # Directories
-    upload_dir: Path = Path("uploads")
     output_dir: Path = Path("outputs")
     cache_dir: Path = Path("cache")
 
@@ -50,6 +49,5 @@ def get_settings() -> Settings:
 def init_directories() -> None:
     """Create required directories."""
     settings = get_settings()
-    settings.upload_dir.mkdir(exist_ok=True)
     settings.output_dir.mkdir(exist_ok=True)
     settings.cache_dir.mkdir(exist_ok=True)
