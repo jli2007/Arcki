@@ -61,7 +61,7 @@ export function Prompt3DGenerator({ isVisible, onClose, onRequestExpand, onPlace
   const [isMinimized, setIsMinimized] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [style, setStyle] = useState<"architectural" | "modern" | "classical" | "futuristic">("architectural");
-  const numViews = 1;
+  const numViews = 2;
 
   const [workflowStage, setWorkflowStage] = useState<WorkflowStage>("input");
   const [isGeneratingPreview, setIsGeneratingPreview] = useState(false);
@@ -580,7 +580,7 @@ export function Prompt3DGenerator({ isVisible, onClose, onRequestExpand, onPlace
                 <div className="flex items-center justify-between">
                   <label className="text-white/70 text-sm font-medium flex items-center gap-2">
                     <ImageIcon className="w-4 h-4" />
-                    {previewResult.short_name || "Generated Image"}
+                    {previewResult.short_name || "Generated Views"}
                   </label>
                   <button
                     onClick={() => setIsExpandedView(true)}
@@ -591,18 +591,33 @@ export function Prompt3DGenerator({ isVisible, onClose, onRequestExpand, onPlace
                   </button>
                 </div>
 
-                <button
-                  onClick={() => setIsExpandedView(true)}
-                  className="relative w-full aspect-square rounded-lg overflow-hidden border border-white/10 hover:border-white/30 transition-all hover:scale-[1.01]"
-                >
-                  <Image
-                    src={previewResult.image_urls[0]}
-                    alt={previewResult.short_name || "Generated"}
-                    fill
-                    unoptimized
-                    className="object-cover"
-                  />
-                </button>
+                <div className="grid grid-cols-2 gap-2">
+                  {previewResult.image_urls.map((url, i) => (
+                    <button
+                      key={i}
+                      onClick={() => {
+                        setSelectedImageIndex(i);
+                        setIsExpandedView(true);
+                      }}
+                      className={`relative aspect-square rounded-lg overflow-hidden border transition-all hover:scale-[1.02] ${
+                        selectedImageIndex === i
+                          ? "border-white/40 ring-2 ring-white/20"
+                          : "border-white/10 hover:border-white/30"
+                      }`}
+                    >
+                      <Image
+                        src={url}
+                        alt={`View ${i + 1}`}
+                        fill
+                        unoptimized
+                        className="object-cover"
+                      />
+                      <div className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded bg-black/60 text-[10px] text-white/70">
+                        {i === 0 ? "Front-Left" : "Front-Right"}
+                      </div>
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <div className="p-3 rounded-lg bg-white/5 border border-white/10">

@@ -127,7 +127,7 @@ export function AssetManagerPanel({
         <span className="text-white/40 text-xs">({models.length})</span>
       </div>
 
-      <div className="max-h-64 overflow-y-auto">
+      <div className="h-72 overflow-y-auto">
         {models.length === 0 ? (
           <div className="p-3 text-center text-white/40 text-xs">
             No models placed yet.
