@@ -119,7 +119,7 @@ class FalService:
         # Extract result
         model_mesh = result.get("model_mesh", {})
         glb_url = model_mesh.get("url")
-        file_name = model_mesh.get("file_name", f"model_{uuid.uuid4().hex[:8]}.glb")
+        file_name = f"{uuid.uuid4().hex[:8]}.glb"
 
         if not glb_url:
             raise RuntimeError("No GLB URL in Trellis response")
