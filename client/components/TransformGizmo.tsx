@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, memo } from "react";
 
 interface TransformGizmoProps {
   screenPosition: { x: number; y: number };
@@ -25,7 +25,7 @@ type DragAxis =
   | "rotateZ"
   | null;
 
-export function TransformGizmo({
+export const TransformGizmo = memo(function TransformGizmo({
   screenPosition,
   mode,
   currentRotation,
@@ -368,4 +368,4 @@ export function TransformGizmo({
       )}
     </div>
   );
-}
+});

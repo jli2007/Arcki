@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, memo } from "react";
 import { Cross2Icon, CubeIcon, ReloadIcon, CheckCircledIcon, ExclamationTriangleIcon, ImageIcon, Pencil1Icon, ChevronLeftIcon, ChevronRightIcon, EnterFullScreenIcon, MinusIcon } from "@radix-ui/react-icons";
 import Image from "next/image";
 
@@ -57,7 +57,7 @@ interface GeneratorState {
   threeDJob: ThreeDJobResult | null;
 }
 
-export function Prompt3DGenerator({ isVisible, onClose, onRequestExpand, onPlaceModel }: Prompt3DGeneratorProps) {
+export const Prompt3DGenerator = memo(function Prompt3DGenerator({ isVisible, onClose, onRequestExpand, onPlaceModel }: Prompt3DGeneratorProps) {
   const [isMinimized, setIsMinimized] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [style, setStyle] = useState<"architectural" | "modern" | "classical" | "futuristic">("architectural");
@@ -93,15 +93,18 @@ export function Prompt3DGenerator({ isVisible, onClose, onRequestExpand, onPlace
   }, []);
 
   useEffect(() => {
-    const state: GeneratorState = {
-      prompt,
-      style,
-      workflowStage,
-      previewResult,
-      selectedImageIndex,
-      threeDJob,
-    };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    const timer = setTimeout(() => {
+      const state: GeneratorState = {
+        prompt,
+        style,
+        workflowStage,
+        previewResult,
+        selectedImageIndex,
+        threeDJob,
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }, 500);
+    return () => clearTimeout(timer);
   }, [prompt, style, workflowStage, previewResult, selectedImageIndex, threeDJob]);
 
   useEffect(() => {
@@ -667,4 +670,4 @@ export function Prompt3DGenerator({ isVisible, onClose, onRequestExpand, onPlace
       </div>
     </>
   );
-}
+});

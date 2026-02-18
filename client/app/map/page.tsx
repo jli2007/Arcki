@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
+import dynamic from "next/dynamic";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import MapboxDraw from "@mapbox/mapbox-gl-draw";
@@ -10,7 +11,6 @@ import bbox from "@turf/bbox";
 import { Toolbar } from "@/components/Toolbar";
 import { WeatherPanel } from "@/components/panels/WeatherPanel";
 import { BuildingDetailsPanel } from "@/components/panels/BuildingDetailsPanel";
-import { InsertModelModal } from "@/components/modals/InsertModelModal";
 import { AssetManagerPanel } from "@/components/panels/AssetManagerPanel";
 import { Prompt3DGenerator } from "@/components/Prompt3DGenerator";
 import { TransformGizmo } from "@/components/TransformGizmo";
@@ -18,10 +18,22 @@ import { SearchBar } from "@/components/SearchBar";
 import { SearchResultPopup } from "@/components/SearchResultPopup";
 import { MapControls } from "@/components/MapControls";
 import { GitHubLogoIcon, ExclamationTriangleIcon } from "@radix-ui/react-icons";
-import { BugReportModal } from "@/components/modals/BugReportModal";
-import { Tutorial, shouldShowTutorial } from "@/components/Tutorial";
+import { shouldShowTutorial } from "@/components/Tutorial";
 import { supabase } from "@/lib/supabase";
 import { saveWorldState, loadWorldState, storeGlbData, type SavedModel } from "@/lib/worldStorage";
+
+const InsertModelModal = dynamic(
+  () => import("@/components/modals/InsertModelModal").then(mod => ({ default: mod.InsertModelModal })),
+  { ssr: false }
+);
+const BugReportModal = dynamic(
+  () => import("@/components/modals/BugReportModal").then(mod => ({ default: mod.BugReportModal })),
+  { ssr: false }
+);
+const Tutorial = dynamic(
+  () => import("@/components/Tutorial").then(mod => ({ default: mod.Tutorial })),
+  { ssr: false }
+);
 
 interface SelectedBuilding {
   id: string | number;
@@ -302,7 +314,44 @@ export default function MapPage() {
       });
     }, 1000);
     return () => clearTimeout(timer);
-  }, [insertedModels, deletedFeatures, lightMode, weather, cameraMoveCount]);
+  }, [insertedModels, deletedFeatures, lightMode, weather]);
+
+  // Save camera position separately with a longer debounce
+  useEffect(() => {
+    if (!worldStateRestoredRef.current || !cameraMoveCount) return;
+    const timer = setTimeout(() => {
+      if (!map.current) return;
+      const center = map.current.getCenter();
+      saveWorldState({
+        insertedModels: insertedModelsRef.current.map((m) => ({
+          id: m.id,
+          name: m.name,
+          position: m.position,
+          height: m.height,
+          heightLocked: m.heightLocked,
+          scale: m.scale,
+          rotationX: m.rotationX,
+          rotationY: m.rotationY,
+          rotationZ: m.rotationZ,
+          isFavorited: m.isFavorited,
+          generatedFrom: m.generatedFrom,
+          supabaseModelId: m.supabaseModelId,
+          supabaseGlbUrl: m.supabaseGlbUrl,
+          hasLocalGlb: !m.supabaseGlbUrl && m.modelUrl.startsWith("blob:"),
+        })),
+        deletedFeatures: deletedFeaturesRef.current,
+        lightMode,
+        weather,
+        camera: {
+          center: [center.lng, center.lat],
+          zoom: map.current!.getZoom(),
+          pitch: map.current!.getPitch(),
+          bearing: map.current!.getBearing(),
+        },
+      });
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, [cameraMoveCount, lightMode, weather]);
 
   const updateDeletedAreasSource = useCallback((features: GeoJSON.Feature[]) => {
     if (map.current) {
@@ -1449,14 +1498,19 @@ export default function MapPage() {
       map.current.on("click", handleModelPlacement);
       map.current.on("mousemove", handleMouseMove);
 
+      let gizmoRafId: number | null = null;
       map.current.on("move", () => {
-        if (selectedModelIdRef.current && map.current) {
-          const model = insertedModelsRef.current.find(m => m.id === selectedModelIdRef.current);
-          if (model) {
-            const screenPos = map.current.project(model.position);
-            setGizmoScreenPos({ x: screenPos.x, y: screenPos.y });
+        if (gizmoRafId) return;
+        gizmoRafId = requestAnimationFrame(() => {
+          gizmoRafId = null;
+          if (selectedModelIdRef.current && map.current) {
+            const model = insertedModelsRef.current.find(m => m.id === selectedModelIdRef.current);
+            if (model) {
+              const screenPos = map.current.project(model.position);
+              setGizmoScreenPos({ x: screenPos.x, y: screenPos.y });
+            }
           }
-        }
+        });
       });
 
       map.current.on("moveend", () => {
@@ -1558,7 +1612,56 @@ export default function MapPage() {
     }
   }, [weather]);
 
-  const selectedModel = selectedModelId ? insertedModels.find(m => m.id === selectedModelId) : null;
+  const selectedModel = useMemo(
+    () => selectedModelId ? insertedModels.find(m => m.id === selectedModelId) : null,
+    [selectedModelId, insertedModels]
+  );
+
+  const currentRotation = useMemo(
+    () => ({
+      x: selectedModel?.rotationX ?? 0,
+      y: selectedModel?.rotationY ?? 0,
+      z: selectedModel?.rotationZ ?? 0,
+    }),
+    [selectedModel?.rotationX, selectedModel?.rotationY, selectedModel?.rotationZ]
+  );
+
+  const handleTogglePromptGenerator = useCallback(() => {
+    setShowPromptGenerator(prev => !prev);
+  }, []);
+
+  const handleToggleLightMode = useCallback(() => {
+    setLightMode(prev => prev === "day" ? "night" : "day");
+  }, []);
+
+  const handleClosePromptGenerator = useCallback(() => {
+    setShowPromptGenerator(false);
+  }, []);
+
+  const handleRequestExpandPromptGenerator = useCallback(() => {
+    setShowPromptGenerator(true);
+  }, []);
+
+  const handleGizmoMoveStart = useCallback(() => {
+    saveModelStateForUndo();
+    map.current?.dragPan.disable();
+  }, [saveModelStateForUndo]);
+
+  const handleGizmoMoveEnd = useCallback(() => {
+    map.current?.dragPan.enable();
+  }, []);
+
+  const handleGizmoDelete = useCallback(() => {
+    if (selectedModelIdRef.current) {
+      handleDeleteModel(selectedModelIdRef.current);
+      setSelectedModelId(null);
+      setGizmoScreenPos(null);
+    }
+  }, [handleDeleteModel]);
+
+  const handleCloseSearchResult = useCallback(() => {
+    setSearchResult(null);
+  }, []);
 
   return (
     <div className="relative h-screen w-full">
@@ -1584,14 +1687,14 @@ export default function MapPage() {
         activeTool={activeTool}
         setActiveTool={handleSetActiveTool}
         showPromptGenerator={showPromptGenerator}
-        onTogglePromptGenerator={() => setShowPromptGenerator(!showPromptGenerator)}
+        onTogglePromptGenerator={handleTogglePromptGenerator}
         selectedModelId={selectedModelId}
         onSaveToLibrary={handleSaveSelectedToLibrary}
         isModelFavorited={selectedModel?.isFavorited ?? false}
       />
       <WeatherPanel
         lightMode={lightMode}
-        onToggleLightMode={() => setLightMode(prev => prev === "day" ? "night" : "day")}
+        onToggleLightMode={handleToggleLightMode}
         weather={weather}
         onWeatherChange={setWeather}
       />
@@ -1644,45 +1747,28 @@ export default function MapPage() {
       />
       <Prompt3DGenerator
         isVisible={showPromptGenerator}
-        onClose={() => setShowPromptGenerator(false)}
-        onRequestExpand={() => setShowPromptGenerator(true)}
+        onClose={handleClosePromptGenerator}
+        onRequestExpand={handleRequestExpandPromptGenerator}
         onPlaceModel={handlePlaceModel}
       />
       {selectedModelId && gizmoScreenPos && (
         <TransformGizmo
           screenPosition={gizmoScreenPos}
           mode={gizmoMode}
-          currentRotation={{
-            x: insertedModels.find(m => m.id === selectedModelId)?.rotationX ?? 0,
-            y: insertedModels.find(m => m.id === selectedModelId)?.rotationY ?? 0,
-            z: insertedModels.find(m => m.id === selectedModelId)?.rotationZ ?? 0,
-          }}
-          onMoveStart={() => {
-            saveModelStateForUndo();
-            map.current?.dragPan.disable();
-          }}
+          currentRotation={currentRotation}
+          onMoveStart={handleGizmoMoveStart}
           onMove={handleGizmoMove}
-          onMoveEnd={() => {
-            map.current?.dragPan.enable();
-          }}
+          onMoveEnd={handleGizmoMoveEnd}
           onHeightChange={handleGizmoHeightChange}
           onRotate={handleGizmoRotate}
           onModeChange={setGizmoMode}
-          onDelete={() => {
-            if (selectedModelId) {
-              handleDeleteModel(selectedModelId);
-              setSelectedModelId(null);
-              setGizmoScreenPos(null);
-            }
-          }}
+          onDelete={handleGizmoDelete}
         />
       )}
       {searchResult && (
         <SearchResultPopup
           result={searchResult}
-          onClose={() => {
-            setSearchResult(null);
-          }}
+          onClose={handleCloseSearchResult}
           onCandidateClick={(candidate) => {
             try {
               const [minLng, minLat, maxLng, maxLat] = bbox({ type: "Feature", geometry: candidate.geometry, properties: {} });

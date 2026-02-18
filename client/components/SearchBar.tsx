@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, memo } from "react";
 
 interface SearchBarProps {
   value: string;
@@ -11,7 +11,7 @@ interface SearchBarProps {
   quickPrompts?: string[];
 }
 
-export function SearchBar({
+export const SearchBar = memo(function SearchBar({
   value,
   onChange,
   onSearch,
@@ -136,4 +136,4 @@ export function SearchBar({
       </div>
     </div>
   );
-}
+});

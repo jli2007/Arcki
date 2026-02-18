@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, memo } from "react";
 import Image from "next/image";
 import {
   Cross2Icon,
@@ -36,7 +36,7 @@ interface BuildingDetailsPanelProps {
   accessToken: string;
 }
 
-export function BuildingDetailsPanel({
+export const BuildingDetailsPanel = memo(function BuildingDetailsPanel({
   selectedBuilding,
   drawnArea,
   onClose,
@@ -85,7 +85,6 @@ export function BuildingDetailsPanel({
               src={staticImageUrl}
               alt="Building aerial view"
               fill
-              unoptimized
               className={`object-cover transition-opacity ${imageLoaded ? "opacity-100" : "opacity-0"}`}
               onLoad={() => setImageLoaded(true)}
               onError={() => setImageError(true)}
@@ -182,4 +181,4 @@ export function BuildingDetailsPanel({
       </div>
     </div>
   );
-}
+});

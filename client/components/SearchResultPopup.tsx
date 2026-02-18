@@ -179,7 +179,7 @@ function getBuildingName(feature: GeoJSON.Feature): string {
   );
 }
 
-export function SearchResultPopup({
+export const SearchResultPopup = React.memo(function SearchResultPopup({
   result,
   onClose,
   onCandidateClick,
@@ -316,4 +316,4 @@ export function SearchResultPopup({
       </div>
     </div>
   );
-}
+});

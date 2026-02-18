@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, memo } from "react";
 import {
   PlusIcon,
   MinusIcon,
@@ -13,7 +13,7 @@ interface MapControlsProps {
   map: mapboxgl.Map | null;
 }
 
-export function MapControls({ map }: MapControlsProps) {
+export const MapControls = memo(function MapControls({ map }: MapControlsProps) {
   const [is2D, setIs2D] = useState(true);
   const [bearing, setBearing] = useState(0);
   const [zoom, setZoom] = useState(1.5);
@@ -236,4 +236,4 @@ export function MapControls({ map }: MapControlsProps) {
       </div>
     </Tooltip.Provider>
   );
-}
+});

@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import {
   CursorArrowIcon,
   Pencil2Icon,
@@ -21,7 +22,7 @@ interface ToolbarProps {
   isModelFavorited?: boolean;
 }
 
-export function Toolbar({
+export const Toolbar = memo(function Toolbar({
   activeTool,
   setActiveTool,
   showPromptGenerator,
@@ -174,4 +175,4 @@ export function Toolbar({
       </div>
     </Tooltip.Provider>
   );
-}
+});

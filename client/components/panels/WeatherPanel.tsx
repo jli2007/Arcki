@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import { SunIcon, MoonIcon } from "@radix-ui/react-icons";
 import { CloudRain, Snowflake, CloudOff } from "lucide-react";
 
@@ -12,7 +13,7 @@ interface WeatherPanelProps {
   onWeatherChange: (weather: WeatherType) => void;
 }
 
-export function WeatherPanel({ lightMode, onToggleLightMode, weather, onWeatherChange }: WeatherPanelProps) {
+export const WeatherPanel = memo(function WeatherPanel({ lightMode, onToggleLightMode, weather, onWeatherChange }: WeatherPanelProps) {
   return (
     <div data-tutorial="weather-panel" className="absolute left-4 top-36 z-10 flex flex-col items-center gap-2 rounded-2xl bg-black/40 backdrop-blur-md border border-white/10 p-3 shadow-xl">
       <button
@@ -62,4 +63,4 @@ export function WeatherPanel({ lightMode, onToggleLightMode, weather, onWeatherC
       </button>
     </div>
   );
-}
+});

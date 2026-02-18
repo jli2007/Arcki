@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, memo } from "react";
 import {
   CubeIcon,
   TrashIcon,
@@ -50,7 +50,7 @@ interface AssetManagerPanelProps {
   ) => void;
 }
 
-export function AssetManagerPanel({
+export const AssetManagerPanel = memo(function AssetManagerPanel({
   models,
   onFlyTo,
   onDelete,
@@ -335,4 +335,4 @@ export function AssetManagerPanel({
       </div>
     </div>
   );
-}
+});
