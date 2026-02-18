@@ -902,22 +902,6 @@ export default function MapPage() {
     return () => window.removeEventListener("error", handleWindowError);
   }, [updateModelsSource]);
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Delete" || e.key === "Backspace") {
-        if (selectedModelIdRef.current) {
-          e.preventDefault();
-          handleDeleteModel(selectedModelIdRef.current);
-          setSelectedModelId(null);
-          setGizmoScreenPos(null);
-        }
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [handleDeleteModel]);
-
   const handleUpdateModel = useCallback((modelId: string, updates: { name?: string; scale?: number; positionX?: number; positionY?: number; height?: number; heightLocked?: boolean; rotationX?: number; rotationY?: number; rotationZ?: number }) => {
     if (updates.name !== undefined) {
       const model = insertedModelsRef.current.find(m => m.id === modelId);

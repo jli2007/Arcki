@@ -98,6 +98,7 @@ CRITICAL FOR 3D RECONSTRUCTION:
 - ISOMETRIC or 3/4 PERSPECTIVE VIEW showing at least 2-3 faces of the subject
 - CLEAN WHITE BACKGROUND — absolutely NO environment, ground, sky, or shadows on background
 - Subject CENTERED and ISOLATED — the ONLY object in frame
+- NO BASE, NO PLATFORM, NO PEDESTAL — building sits directly at ground level, bottom is flat floor
 - SOFT EVEN STUDIO LIGHTING from multiple angles — minimal harsh shadows
 - REALISTIC MATERIALS with accurate colors (brick=red/brown, glass=blue-gray, concrete=gray, wood=brown)
 - For KNOWN landmarks, match their REAL colors and proportions exactly
@@ -221,8 +222,8 @@ Respond in JSON format:
         render_prompt = (
             f"Isometric 3/4 view from slightly above of {prompt}, "
             "showing front and side clearly, "
-            "object sits on a visible solid flat base or platform, "
-            "complete solid foundation visible, no floating or missing bottom, "
+            "building sits directly on ground level with NO base NO platform NO pedestal, "
+            "bottom of building is flat ground floor level, "
             "isolated on pure white background, "
             "bright flat lighting with NO shadows anywhere, "
             "evenly lit from all sides, "
