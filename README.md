@@ -7,8 +7,8 @@ https://github.com/user-attachments/assets/f76bb89e-2bf3-4b0b-b63b-41453787ed2b
 
 
 <p align="center">
-  <img src="client/public/r8.png" width="500" alt="Roman cityscape">
-  <img src="client/public/r7.png" width="500" alt="Roman forum">
+  <img src="client/public/r8.png" width="400" alt="Roman cityscape">
+  <img src="client/public/r7.png" width="400" alt="Roman forum">
 </p>
 
 ## Stack
