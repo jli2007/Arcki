@@ -8,8 +8,6 @@ from ..schemas import PromptCleanResponse, ImageGenerateResponse
 
 
 class OpenAIService:
-    """Service for OpenAI API interactions."""
-
     SEARCH_INTENT_PROMPT = """You are an intelligent map search assistant. Parse user queries to understand their intent.
 Users may have typos, misspellings, or use informal language. Always correct and interpret their intent.
 
@@ -94,11 +92,22 @@ If no results were found, provide a helpful message."""
 
 YOUR #1 RULE: DO NOT change what the user asked for. If they say "garden", generate a garden — NOT a "garden pavilion". Keep the EXACT subject.
 
+LANDMARK RECOGNITION - THIS IS CRITICAL:
+When the user asks for a KNOWN LANDMARK, FAMOUS BUILDING, or REAL-WORLD STRUCTURE (e.g., "CN Tower", "Eiffel Tower", "Sydney Opera House", "Taj Mahal", "Empire State Building"):
+1. You MUST identify it as a known structure
+2. You MUST include SPECIFIC VISUAL DETAILS from your knowledge:
+   - Exact architectural features (e.g., CN Tower's distinctive concrete shaft with observation pod and antenna spire)
+   - Real colors and materials (e.g., CN Tower's gray concrete, white observation deck)
+   - Distinctive proportions and silhouette
+   - Key identifying elements that make it recognizable
+3. Set "is_landmark" to true in your response
+4. Include the landmark's actual visual description in dalle_prompt
+
 CRITICAL FOR 3D RECONSTRUCTION:
 - ISOMETRIC or 3/4 PERSPECTIVE VIEW showing at least 2-3 faces of the subject
 - CLEAN WHITE BACKGROUND — absolutely NO environment, ground, sky, or shadows on background
 - Subject CENTERED and ISOLATED — the ONLY object in frame
-- ABSOLUTELY NO BASE, NO PLATFORM, NO PEDESTAL, NO GROUND SLAB — building is cut off cleanly at ground floor level, nothing underneath
+- FLOATING IN EMPTY WHITE SPACE — the subject hovers with nothing below it, the bottom edge of the structure IS the bottom edge of the image, cropped flush at ground level
 - SOFT EVEN STUDIO LIGHTING from multiple angles — minimal harsh shadows
 - REALISTIC MATERIALS with accurate colors (brick=red/brown, glass=blue-gray, concrete=gray, wood=brown)
 - For KNOWN landmarks, match their REAL colors and proportions exactly
@@ -119,7 +128,9 @@ Respond in JSON:
     "cleaned_prompt": "The user's description preserved faithfully",
     "dalle_prompt": "Optimized prompt for 3D reconstruction",
     "short_name": "2-4 word name",
-    "style_tags": ["isometric", "3d-optimized", "white-background"]
+    "style_tags": ["isometric", "3d-optimized", "white-background"],
+    "is_landmark": true/false,
+    "landmark_details": "If is_landmark=true, include specific visual details here"
 }"""
 
     SYSTEM_PROMPT_3D_PREVIEW = """You are an expert at creating prompts for 3D architectural visualization renders.
@@ -153,7 +164,6 @@ Respond in JSON format:
 
     @property
     def is_configured(self) -> bool:
-        """Check if OpenAI is configured."""
         return self._client is not None
 
     async def clean_prompt(
@@ -161,16 +171,6 @@ Respond in JSON format:
         prompt: str,
         style: str = "architectural"
     ) -> PromptCleanResponse:
-        """
-        Clean and enhance a user prompt for DALL-E.
-
-        Args:
-            prompt: User's raw prompt
-            style: Architecture style preference
-
-        Returns:
-            PromptCleanResponse with cleaned and optimized prompts
-        """
         if not self._client:
             raise RuntimeError("OpenAI not configured. Set OPENAI_API_KEY.")
 
@@ -183,7 +183,7 @@ Respond in JSON format:
                 {"role": "user", "content": f"Style preference: {style_context}\n\nUser prompt: {prompt}"}
             ],
             response_format={"type": "json_object"},
-            temperature=0.3,  # Lower temperature for consistent bright outputs
+            temperature=0.3,
             max_tokens=500
         )
 
@@ -203,37 +203,33 @@ Respond in JSON format:
     async def generate_images(
         self,
         prompt: str,
-        num_images: int = 1,  # noqa: ARG002 - kept for API compatibility
+        num_images: int = 1,
         size: str = "1024x1024",
         quality: str = "hd",
         style: str = "vivid",
         include_3d_preview: bool = True
     ) -> ImageGenerateResponse:
-        """
-        Generate a single high-quality image optimized for 3D reconstruction.
-
-        Returns:
-            ImageGenerateResponse with image URL and optional 3D preview
-        """
         _ = num_images
         if not self._client:
             raise RuntimeError("OpenAI not configured. Set OPENAI_API_KEY.")
 
+        enhanced_prompt = await self._enhance_prompt_for_landmarks(prompt)
+
         render_prompt = (
-            f"Isometric 3/4 view from slightly above of {prompt}, "
+            f"Isometric 3/4 view from slightly above of {enhanced_prompt}, "
             "showing front and side clearly, "
-            "IMPORTANT: absolutely NO base, NO platform, NO pedestal, NO ground plane, NO floor slab underneath, "
-            "the building itself touches the edge of the image at the bottom, "
-            "building is cut off cleanly at ground floor level as if sliced, "
-            "isolated on pure white background with nothing underneath the building, "
-            "bright flat lighting with NO shadows anywhere, "
-            "evenly lit from all sides, "
-            "all surfaces fully illuminated and bright, "
+            "the structure floats in pure white empty void, "
+            "suspended in infinite white space with empty white below, "
+            "bottom of structure is cropped flush at ground floor level, "
+            "structure appears to hover weightlessly in white emptiness, "
+            "only the building exists, surrounded by pure white on all sides including underneath, "
+            "bright flat shadowless studio lighting from all angles, "
+            "evenly illuminated surfaces, "
             "photorealistic materials and accurate vibrant colors, "
             "extremely high detail and sharp clean edges, "
             "centered composition filling 80% of frame, "
-            "complete sealed building with no holes or gaps, "
-            "professional product photography, shadowless studio lighting"
+            "complete sealed structure, "
+            "professional product photography on infinite white backdrop"
         )
 
         size_param = cast(Literal["1024x1024", "1792x1024", "1024x1792"], size)
@@ -270,29 +266,67 @@ Respond in JSON format:
             preview_3d_url=preview_3d_url
         )
 
+    async def _enhance_prompt_for_landmarks(self, prompt: str) -> str:
+        if not self._client:
+            return prompt
+
+        try:
+            response = await self._client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {"role": "system", "content": """You are an expert at identifying famous landmarks, buildings, and structures.
+
+Your job is to determine if the user is asking for a KNOWN REAL-WORLD STRUCTURE and if so, provide specific visual details.
+
+If the input references a known landmark (CN Tower, Eiffel Tower, Burj Khalifa, Sydney Opera House, etc.):
+1. Set is_landmark to true
+2. Provide a detailed visual description including:
+   - Exact architectural features and shapes
+   - Real materials and colors
+   - Distinctive proportions
+   - Key identifying elements
+
+If it's a generic description (e.g., "modern skyscraper", "japanese garden"), set is_landmark to false.
+
+Respond in JSON:
+{
+    "is_landmark": true/false,
+    "enhanced_description": "If landmark: detailed visual description. If not: return the original prompt unchanged."
+}
+
+Examples:
+- "CN Tower" -> {"is_landmark": true, "enhanced_description": "the CN Tower of Toronto, a 553m tall concrete communications tower with distinctive Y-shaped base supports, narrow concrete shaft rising to the main observation pod (a seven-story donut-shaped structure with dark glass windows), topped by a white SkyPod and tall antenna spire, gray concrete with white accents"}
+- "Eiffel Tower" -> {"is_landmark": true, "enhanced_description": "the Eiffel Tower of Paris, wrought iron lattice tower with four curved legs meeting at the top, distinctive brown iron color, intricate geometric cross-bracing patterns, three observation levels, tapering gracefully to a point with antenna"}
+- "modern glass building" -> {"is_landmark": false, "enhanced_description": "modern glass building"}"""},
+                    {"role": "user", "content": f"Analyze this prompt: {prompt}"}
+                ],
+                response_format={"type": "json_object"},
+                temperature=0.3,
+                max_tokens=400
+            )
+
+            content = response.choices[0].message.content
+            if content is None:
+                return prompt
+            result = json.loads(content)
+
+            if result.get("is_landmark", False):
+                return result.get("enhanced_description", prompt)
+            return prompt
+
+        except Exception:
+            return prompt
+
     async def _generate_3d_preview(
         self,
         prompt: str,
         size: str = "1024x1024",
         quality: str = "hd"
     ) -> Optional[str]:
-        """
-        Generate a 3D perspective preview render for user visualization.
-        This is NOT used for Trellis 3D generation - just for user preview.
-
-        Args:
-            prompt: Building description
-            size: Image size
-            quality: standard or hd
-
-        Returns:
-            URL to the 3D preview image
-        """
         if not self._client:
             raise RuntimeError("OpenAI not configured. Set OPENAI_API_KEY.")
 
         try:
-            # Get optimized 3D preview prompt from GPT
             gpt_response = await self._client.chat.completions.create(
                 model="gpt-4o",
                 messages=[
@@ -314,7 +348,6 @@ Respond in JSON format:
             )
             preview_prompt = result.get("preview_prompt", default_preview)
 
-            # Generate the 3D preview image
             size_param = cast(
                 Literal["1024x1024", "1792x1024", "1024x1792"],
                 size
@@ -325,7 +358,7 @@ Respond in JSON format:
                 prompt=preview_prompt,
                 size=size_param,
                 quality=quality_param,
-                style="vivid",  # Use vivid for more dramatic 3D renders
+                style="vivid",
                 n=1
             )
             return response.data[0].url
@@ -333,17 +366,7 @@ Respond in JSON format:
             return None
 
     async def parse_search_intent(self, query: str) -> dict:
-        """
-        Parse a natural language search query into structured intent.
-
-        Args:
-            query: User's search query (e.g., "take me to Paris", "tallest building")
-
-        Returns:
-            Dict with action, location_query, building_attributes, search_radius_km
-        """
         if not self._client:
-            # Fallback to simple keyword parsing if OpenAI not configured
             return self._fallback_intent_parse(query)
 
         try:
@@ -354,7 +377,7 @@ Respond in JSON format:
                     {"role": "user", "content": f"Parse this search query: {query}"}
                 ],
                 response_format={"type": "json_object"},
-                temperature=0.3,  # Lower for more deterministic parsing
+                temperature=0.3,
                 max_tokens=300
             )
 
@@ -366,18 +389,14 @@ Respond in JSON format:
             return self._fallback_intent_parse(query)
 
     def _fallback_intent_parse(self, query: str) -> dict:
-        """Fallback rule-based intent parsing when OpenAI is unavailable."""
         query_lower = query.lower()
 
-        # Check for navigation intent
         if any(phrase in query_lower for phrase in ["take me to", "go to", "navigate to", "fly to"]):
-            # Extract location after the phrase
             for phrase in ["take me to", "go to", "navigate to", "fly to"]:
                 if phrase in query_lower:
                     location = query_lower.split(phrase, 1)[1].strip()
-                    # Check if it's a building search
                     if any(word in location for word in ["tallest", "biggest", "underdeveloped"]):
-                        break  # It's a building search, not navigation
+                        break
                     return {
                         "action": "navigate",
                         "location_query": location,
@@ -386,7 +405,6 @@ Respond in JSON format:
                         "reasoning": "Fallback: navigation phrase detected"
                     }
 
-        # Check for building search
         sort_by = None
         if any(word in query_lower for word in ["tallest", "tall", "highest", "height"]):
             sort_by = "height"
@@ -404,7 +422,6 @@ Respond in JSON format:
                 "reasoning": f"Fallback: building search for {sort_by}"
             }
 
-        # Default to search area
         return {
             "action": "search_area",
             "location_query": None,
@@ -420,18 +437,6 @@ Respond in JSON format:
         location_name: Optional[str],
         intent: Optional[dict] = None
     ) -> str:
-        """
-        Generate a natural language answer for search results.
-
-        Args:
-            query: Original search query
-            top_result: Top building result (GeoJSON feature) or None
-            location_name: Location context if applicable
-            intent: Parsed intent for context
-
-        Returns:
-            Natural language answer string
-        """
         if not self._client:
             return self._fallback_answer_generation(query, top_result, location_name, intent)
 
@@ -467,7 +472,6 @@ Intent: {json.dumps(intent) if intent else 'unknown'}"""
         location_name: Optional[str],
         intent: Optional[dict]
     ) -> str:
-        """Fallback answer generation when OpenAI is unavailable."""
         if not top_result:
             return f"No buildings found{' near ' + location_name if location_name else ' in this area'}."
 

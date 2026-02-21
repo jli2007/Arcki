@@ -11,10 +11,6 @@ router = APIRouter(tags=["Files"])
 
 @router.post("/upload-and-generate", response_model=UploadResponse)
 async def upload_and_generate(file: UploadFile = File(...)):
-    """
-    Upload an image and generate 3D model directly.
-    Useful for existing architectural images.
-    """
     if not file.content_type or not file.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="File must be an image")
 
@@ -26,10 +22,7 @@ async def upload_and_generate(file: UploadFile = File(...)):
         content = await file.read()
         filename = f"{uuid.uuid4().hex}_{file.filename}"
 
-        # Upload to fal storage
         image_url = await fal_svc.upload_image(content, filename)
-
-        # Generate 3D
         result = await fal_svc.generate_3d(image_url=image_url)
 
         return UploadResponse(
@@ -47,7 +40,6 @@ async def upload_and_generate(file: UploadFile = File(...)):
 
 @router.get("/download/{filename}")
 async def download_mesh(filename: str):
-    """Download generated GLB file."""
     settings = get_settings()
     file_path = settings.output_dir / filename
 
@@ -64,7 +56,6 @@ async def download_mesh(filename: str):
 
 @router.delete("/cleanup")
 async def cleanup_files():
-    """Clean up all uploaded and generated files."""
     settings = get_settings()
 
     try:

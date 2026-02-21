@@ -2,12 +2,7 @@ from typing import Optional
 from pydantic import BaseModel, Field
 
 
-# =============================================================================
-# Prompt Cleaning
-# =============================================================================
-
 class PromptCleanRequest(BaseModel):
-    """Request to clean and enhance a prompt."""
     prompt: str
     style: str = Field(
         default="architectural",
@@ -16,7 +11,6 @@ class PromptCleanRequest(BaseModel):
 
 
 class PromptCleanResponse(BaseModel):
-    """Response with cleaned prompt."""
     original_prompt: str
     cleaned_prompt: str
     dalle_prompt: str
@@ -24,12 +18,7 @@ class PromptCleanResponse(BaseModel):
     style_tags: list[str]
 
 
-# =============================================================================
-# Image Generation
-# =============================================================================
-
 class ImageGenerateRequest(BaseModel):
-    """Request to generate images with DALL-E."""
     prompt: str
     num_images: int = Field(default=1, ge=1, le=4)
     size: str = "1024x1024"
@@ -38,42 +27,30 @@ class ImageGenerateRequest(BaseModel):
 
 
 class ImageGenerateResponse(BaseModel):
-    """Response with generated image URLs."""
     images: list[str]
     prompt_used: str
-    preview_3d_url: Optional[str] = None  # 3D perspective preview for user visualization (not used for Trellis)
+    preview_3d_url: Optional[str] = None
 
-
-# =============================================================================
-# 3D Generation
-# =============================================================================
 
 class TrellisRequest(BaseModel):
-    """Request to generate 3D with fal.ai Trellis."""
     image_url: Optional[str] = None
     image_urls: Optional[list[str]] = None
     use_multi: bool = False
     seed: Optional[int] = None
-    texture_size: int = Field(default=1024, ge=512, le=2048)  # Max resolution for quality
-    mesh_simplify: float = Field(default=0.95, ge=0.9, le=0.98)  # 0.9 = max detail
+    texture_size: int = Field(default=1024, ge=512, le=2048)
+    mesh_simplify: float = Field(default=0.95, ge=0.9, le=0.98)
     ss_guidance_strength: float = Field(default=7.5, ge=0, le=10)
     slat_guidance_strength: float = Field(default=3.0, ge=0, le=10)
 
 
 class TrellisResponse(BaseModel):
-    """Response with generated 3D model."""
     model_url: str
     file_name: str
     format: str
     generation_time: float
 
 
-# =============================================================================
-# Full Pipeline
-# =============================================================================
-
 class PipelineRequest(BaseModel):
-    """Request for full text-to-3D pipeline."""
     prompt: str
     style: str = Field(
         default="architectural",
@@ -85,7 +62,6 @@ class PipelineRequest(BaseModel):
 
 
 class PipelineResponse(BaseModel):
-    """Response from full pipeline."""
     job_id: str
     status: str
     original_prompt: str
@@ -99,25 +75,15 @@ class PipelineResponse(BaseModel):
     stages: dict
 
 
-# =============================================================================
-# Job Status
-# =============================================================================
-
 class JobStatus(BaseModel):
-    """Status of an async generation job."""
     job_id: str
-    status: str  # pending, cleaning_prompt, generating_images, generating_3d, completed, failed
+    status: str
     progress: int = Field(ge=0, le=100)
     message: str
     result: Optional[PipelineResponse] = None
 
 
-# =============================================================================
-# Upload
-# =============================================================================
-
 class UploadResponse(BaseModel):
-    """Response from image upload and 3D generation."""
     status: str
     input_file: str
     model_url: str
@@ -127,12 +93,7 @@ class UploadResponse(BaseModel):
     generation_time: float
 
 
-# =============================================================================
-# Preview Workflow (2D first, then 3D in background)
-# =============================================================================
-
 class PreviewRequest(BaseModel):
-    """Request for 2D preview generation."""
     prompt: str
     style: str = Field(
         default="architectural",
@@ -143,9 +104,8 @@ class PreviewRequest(BaseModel):
 
 
 class PreviewResponse(BaseModel):
-    """Response with 2D images and job_id for background 3D generation."""
     job_id: str
-    status: str  # "images_ready" or "error"
+    status: str
     original_prompt: str
     cleaned_prompt: str
     dalle_prompt: str
@@ -156,7 +116,6 @@ class PreviewResponse(BaseModel):
 
 
 class Start3DRequest(BaseModel):
-    """Request to start 3D generation from existing images."""
     job_id: str
     image_urls: list[str]
     texture_size: int = Field(default=1024, ge=512, le=2048)
@@ -164,9 +123,8 @@ class Start3DRequest(BaseModel):
 
 
 class ThreeDJobStatus(BaseModel):
-    """Status of a 3D generation job."""
     job_id: str
-    status: str  # "pending", "generating", "completed", "failed"
+    status: str
     progress: int = Field(ge=0, le=100)
     message: str
     model_url: Optional[str] = None
@@ -176,16 +134,14 @@ class ThreeDJobStatus(BaseModel):
 
 
 class ActiveJob(BaseModel):
-    """Unified active job representation."""
     job_id: str
-    type: str  # "image", "3d", "pipeline"
+    type: str
     status: str
     progress: int = Field(ge=0, le=100)
     message: str
 
 
 class ActiveJobsResponse(BaseModel):
-    """Response listing active jobs only."""
     total_active: int
     image_jobs: int
     three_d_jobs: int

@@ -23,21 +23,14 @@ from ..schemas import (
 
 router = APIRouter(tags=["Generation"])
 
-# Job storage prefixes
 PREFIX_PIPELINE = "pipeline"
 PREFIX_3D = "3d"
 PREFIX_IMAGE = "image"
 
-# TTL for jobs (2 hours)
 JOB_TTL = 7200
 
 
-# =============================================================================
-# Job Storage Helpers
-# =============================================================================
-
 def get_pipeline_job(job_id: str) -> JobStatus | None:
-    """Get a pipeline job from storage."""
     store = get_job_store()
     data = store.get(PREFIX_PIPELINE, job_id)
     if data:
@@ -46,13 +39,11 @@ def get_pipeline_job(job_id: str) -> JobStatus | None:
 
 
 def set_pipeline_job(job: JobStatus) -> None:
-    """Store a pipeline job."""
     store = get_job_store()
     store.set(PREFIX_PIPELINE, job.job_id, job.model_dump(), JOB_TTL)
 
 
 def get_3d_job(job_id: str) -> ThreeDJobStatus | None:
-    """Get a 3D job from storage."""
     store = get_job_store()
     data = store.get(PREFIX_3D, job_id)
     if data:
@@ -61,51 +52,37 @@ def get_3d_job(job_id: str) -> ThreeDJobStatus | None:
 
 
 def set_3d_job(job: ThreeDJobStatus) -> None:
-    """Store a 3D job."""
     store = get_job_store()
     store.set(PREFIX_3D, job.job_id, job.model_dump(), JOB_TTL)
 
 
 def delete_3d_job(job_id: str) -> None:
-    """Delete a 3D job from storage."""
     store = get_job_store()
     store.delete(PREFIX_3D, job_id)
 
 
 def get_image_job(job_id: str) -> dict | None:
-    """Get an image job from storage."""
     store = get_job_store()
     return store.get(PREFIX_IMAGE, job_id)
 
 
 def set_image_job(job_id: str, data: dict) -> None:
-    """Store an image job."""
     store = get_job_store()
     store.set(PREFIX_IMAGE, job_id, data, JOB_TTL)
 
 
 def delete_image_job(job_id: str) -> None:
-    """Delete an image job from storage."""
     store = get_job_store()
     store.delete(PREFIX_IMAGE, job_id)
 
 
 def delete_pipeline_job(job_id: str) -> None:
-    """Delete a pipeline job from storage."""
     store = get_job_store()
     store.delete(PREFIX_PIPELINE, job_id)
 
 
-# =============================================================================
-# Individual Stage Endpoints
-# =============================================================================
-
 @router.post("/clean-prompt", response_model=PromptCleanResponse)
 async def clean_prompt(request: PromptCleanRequest):
-    """
-    Clean and enhance user prompt for architectural 3D generation.
-    Uses GPT-4 to create optimized prompts for DALL-E.
-    """
     openai_svc = OpenAIService()
     if not openai_svc.is_configured:
         raise HTTPException(status_code=503, detail="OpenAI not configured. Set OPENAI_API_KEY.")
@@ -118,10 +95,6 @@ async def clean_prompt(request: PromptCleanRequest):
 
 @router.post("/generate-image", response_model=ImageGenerateResponse)
 async def generate_image(request: ImageGenerateRequest):
-    """
-    Generate architectural 2D images using DALL-E 3.
-    Can generate multiple views for multi-image Trellis mode.
-    """
     openai_svc = OpenAIService()
     if not openai_svc.is_configured:
         raise HTTPException(status_code=503, detail="OpenAI not configured. Set OPENAI_API_KEY.")
@@ -140,10 +113,6 @@ async def generate_image(request: ImageGenerateRequest):
 
 @router.post("/generate-3d", response_model=TrellisResponse)
 async def generate_3d(request: TrellisRequest):
-    """
-    Generate 3D model from image(s) using fal.ai Trellis.
-    Outputs GLB format with PBR textures.
-    """
     fal_svc = FalService()
     if not fal_svc.is_configured:
         raise HTTPException(status_code=503, detail="fal.ai not configured. Set FAL_KEY.")
@@ -166,12 +135,7 @@ async def generate_3d(request: TrellisRequest):
         raise HTTPException(status_code=500, detail=f"3D generation failed: {e}")
 
 
-# =============================================================================
-# Async Pipeline
-# =============================================================================
-
 async def _run_pipeline_async(job_id: str, request: PipelineRequest):
-    """Background task for async pipeline execution."""
     openai_svc = OpenAIService()
     fal_svc = FalService()
 
@@ -184,7 +148,6 @@ async def _run_pipeline_async(job_id: str, request: PipelineRequest):
     set_pipeline_job(job)
 
     try:
-        # Stage 1
         job.status = "cleaning_prompt"
         job.progress = 10
         job.message = "Cleaning prompt with AI..."
@@ -192,7 +155,6 @@ async def _run_pipeline_async(job_id: str, request: PipelineRequest):
 
         clean_result = await openai_svc.clean_prompt(request.prompt, request.style)
 
-        # Stage 2
         job.status = "generating_images"
         job.progress = 30
         job.message = "Generating 2D images with DALL-E..."
@@ -204,7 +166,6 @@ async def _run_pipeline_async(job_id: str, request: PipelineRequest):
             quality="hd" if request.high_quality else "standard"
         )
 
-        # Stage 3
         job.status = "generating_3d"
         job.progress = 60
         job.message = "Generating 3D model with Trellis..."
@@ -219,7 +180,6 @@ async def _run_pipeline_async(job_id: str, request: PipelineRequest):
             texture_size=request.texture_size
         )
 
-        # Complete
         job.status = "completed"
         job.progress = 100
         job.message = "3D model ready!"
@@ -250,10 +210,6 @@ async def generate_architecture_async(
     request: PipelineRequest,
     background_tasks: BackgroundTasks
 ):
-    """
-    Async version of the full pipeline.
-    Returns immediately with a job_id to poll for status.
-    """
     openai_svc = OpenAIService()
     fal_svc = FalService()
 
@@ -274,23 +230,14 @@ async def generate_architecture_async(
 
 @router.get("/job/{job_id}", response_model=JobStatus)
 async def get_job_status(job_id: str):
-    """Get status of an async generation job."""
     job = get_pipeline_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     return job
 
 
-# =============================================================================
-# Preview Workflow (2D first, then 3D in background)
-# =============================================================================
-
 @router.post("/generate-preview", response_model=PreviewResponse)
 async def generate_preview(request: PreviewRequest):
-    """
-    Generate 2D images immediately and return them.
-    Does NOT start 3D generation - call /start-3d separately.
-    """
     openai_svc = OpenAIService()
 
     if not openai_svc.is_configured:
@@ -298,7 +245,6 @@ async def generate_preview(request: PreviewRequest):
 
     job_id = uuid.uuid4().hex
 
-    # Track image generation job
     set_image_job(job_id, {
         "job_id": job_id,
         "status": "generating",
@@ -307,10 +253,8 @@ async def generate_preview(request: PreviewRequest):
     })
 
     try:
-        # Stage 1: Clean prompt
         clean_result = await openai_svc.clean_prompt(request.prompt, request.style)
 
-        # Stage 2: Generate images
         set_image_job(job_id, {
             "job_id": job_id,
             "status": "generating",
@@ -324,7 +268,6 @@ async def generate_preview(request: PreviewRequest):
             quality="hd" if request.high_quality else "standard"
         )
 
-        # Remove from active jobs when complete
         delete_image_job(job_id)
 
         return PreviewResponse(
@@ -345,7 +288,6 @@ async def generate_preview(request: PreviewRequest):
 
 
 async def _run_3d_generation(job_id: str, image_urls: list[str], texture_size: int, use_multi: bool):
-    """Background task for 3D generation."""
     fal_svc = FalService()
 
     job = ThreeDJobStatus(
@@ -359,7 +301,6 @@ async def _run_3d_generation(job_id: str, image_urls: list[str], texture_size: i
     try:
         start_time = time.time()
 
-        # Update progress
         job.progress = 30
         job.message = "Processing images with Trellis..."
         set_3d_job(job)
@@ -394,10 +335,6 @@ async def start_3d_generation(
     request: Start3DRequest,
     background_tasks: BackgroundTasks
 ):
-    """
-    Start 3D generation in background from existing images.
-    Returns immediately with job_id to poll for status.
-    """
     fal_svc = FalService()
 
     if not fal_svc.is_configured:
@@ -406,7 +343,6 @@ async def start_3d_generation(
     if not request.image_urls:
         raise HTTPException(status_code=400, detail="No images provided")
 
-    # Initialize job status
     job = ThreeDJobStatus(
         job_id=request.job_id,
         status="pending",
@@ -415,10 +351,8 @@ async def start_3d_generation(
     )
     set_3d_job(job)
 
-    # Determine if multi-view
     use_multi = request.use_multi and len(request.image_urls) > 1
 
-    # Start background task
     background_tasks.add_task(
         _run_3d_generation,
         request.job_id,
@@ -436,7 +370,6 @@ async def start_3d_generation(
 
 @router.get("/3d-job/{job_id}", response_model=ThreeDJobStatus)
 async def get_3d_job_status(job_id: str):
-    """Get status of a 3D generation job."""
     job = get_3d_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="3D job not found")
@@ -445,14 +378,9 @@ async def get_3d_job_status(job_id: str):
 
 @router.get("/jobs", response_model=ActiveJobsResponse)
 async def list_active_jobs():
-    """
-    List all currently active jobs (image generation, 3D generation, pipelines).
-    Only shows jobs that are in progress, not completed or failed.
-    """
     store = get_job_store()
     active_jobs: list[ActiveJob] = []
 
-    # Collect active image generation jobs
     for job_data in store.get_all(PREFIX_IMAGE):
         active_jobs.append(ActiveJob(
             job_id=job_data["job_id"],
@@ -462,7 +390,6 @@ async def list_active_jobs():
             message=job_data["message"]
         ))
 
-    # Collect active 3D generation jobs
     for job_data in store.get_all(PREFIX_3D):
         if job_data["status"] in ("pending", "generating"):
             active_jobs.append(ActiveJob(
@@ -473,7 +400,6 @@ async def list_active_jobs():
                 message=job_data["message"]
             ))
 
-    # Collect active pipeline jobs
     for job_data in store.get_all(PREFIX_PIPELINE):
         if job_data["status"] not in ("completed", "failed"):
             active_jobs.append(ActiveJob(
@@ -484,12 +410,10 @@ async def list_active_jobs():
                 message=job_data["message"]
             ))
 
-    # Count by type
     image_count = sum(1 for j in active_jobs if j.type == "image")
     three_d_count = sum(1 for j in active_jobs if j.type == "3d")
     pipeline_count = sum(1 for j in active_jobs if j.type == "pipeline")
 
-    # Sort by progress (lower progress = earlier in pipeline)
     active_jobs.sort(key=lambda j: j.progress)
 
     return ActiveJobsResponse(
@@ -503,27 +427,20 @@ async def list_active_jobs():
 
 @router.post("/jobs/{job_id}/cancel")
 async def cancel_job(job_id: str):
-    """
-    Cancel a running job. Marks it as cancelled and removes from active tracking.
-    Works for 3D jobs, image jobs, and pipeline jobs.
-    """
     cancelled = False
     job_type = None
 
-    # Check and cancel 3D job
     job_3d = get_3d_job(job_id)
     if job_3d and job_3d.status in ("pending", "generating"):
         delete_3d_job(job_id)
         cancelled = True
         job_type = "3d"
 
-    # Check and cancel image job
     if get_image_job(job_id):
         delete_image_job(job_id)
         cancelled = True
         job_type = "image"
 
-    # Check and cancel pipeline job
     job_pipeline = get_pipeline_job(job_id)
     if job_pipeline and job_pipeline.status not in ("completed", "failed"):
         delete_pipeline_job(job_id)
@@ -538,21 +455,15 @@ async def cancel_job(job_id: str):
 
 @router.delete("/jobs/cleanup")
 async def cleanup_finished_jobs():
-    """
-    Clean up completed and failed jobs from storage.
-    With Redis TTL, jobs auto-expire, but this allows manual cleanup.
-    """
     store = get_job_store()
     three_d_deleted = 0
     pipeline_deleted = 0
 
-    # Clean up completed/failed 3D jobs
     for job_data in store.get_all(PREFIX_3D):
         if job_data["status"] in ("completed", "failed"):
             delete_3d_job(job_data["job_id"])
             three_d_deleted += 1
 
-    # Clean up completed/failed pipeline jobs
     for job_data in store.get_all(PREFIX_PIPELINE):
         if job_data["status"] in ("completed", "failed"):
             delete_pipeline_job(job_data["job_id"])

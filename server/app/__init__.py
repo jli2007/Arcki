@@ -1,1 +1,1 @@
-# Arcki API Server
+# directory is a package, for imports

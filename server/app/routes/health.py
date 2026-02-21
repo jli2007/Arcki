@@ -6,7 +6,6 @@ from ..services import OpenAIService, FalService
 router = APIRouter(tags=["Health"])
 
 
-# Silence browser auto-requests for icons
 @router.get("/favicon.ico", include_in_schema=False)
 @router.get("/apple-touch-icon.png", include_in_schema=False)
 @router.get("/apple-touch-icon-precomposed.png", include_in_schema=False)
