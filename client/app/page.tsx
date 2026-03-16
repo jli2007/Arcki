@@ -548,7 +548,7 @@ export default function Home() {
             © 2026 Arcki. ⭐️ Star us on Github!
           </p>
           <a
-            href="https://github.com"
+            href="https://github.com/jli2007/Arcki"
             target="_blank"
             rel="noopener noreferrer"
             className="text-gray-400 hover:text-white transition-colors"
